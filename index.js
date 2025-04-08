@@ -298,7 +298,7 @@ client.on(Events.InteractionCreate, async interaction => {
         try {
             // Handle message_id autocomplete
             if (focusedOption.name === 'message_id' &&
-                ['list', 'add', 'edit', 'remove'].includes(subcommand)) {
+                ['list', 'add', 'edit', 'remove', 'delete'].includes(subcommand)) {
 
                 const filter = pb.filter(`guild_id = {:guild_id}`, {guild_id: interaction.guildId});
                 const records = await pb.collection('reaction_roles').getFullList({ filter });
