@@ -20,6 +20,7 @@ try {
         process.env.POCKETBASE_ADMIN_EMAIL,
         process.env.POCKETBASE_ADMIN_PASSWORD
     );
+    pb.autoCancellation(false);
     console.log('PocketBase admin authenticated successfully.');
 } catch (error) {
     console.error('PocketBase admin authentication failed:', error);
@@ -73,6 +74,31 @@ console.log('Command handlers loaded.');
 // Ready Event (Run only once, init content)
 client.once(Events.ClientReady, async c => {
     console.log(`Ready! Logged in as ${c.user.tag}`);
+
+    // Status rotation setup
+    const activities = [
+        { name: 'with reaction roles', type: 0 },
+        { name: 'DreamingDragons', type: 3 },
+        { name: 'some cool people', type: 2 },
+        { name: `in ${client.guilds.cache.size} servers`, type: 0 }
+    ];
+
+    let activityIndex = 0;
+
+    // Initial presence set
+    client.user.setPresence({
+        activities: [activities[0]],
+        status: 'online'
+    });
+
+    // Rotate status every 3 minutes
+    setInterval(() => {
+        activityIndex = (activityIndex + 1) % activities.length;
+        client.user.setPresence({
+            activities: [activities[activityIndex]],
+            status: 'online'
+        });
+    }, 3 * 60 * 1000);
 
     await loadReactionRoleMessages(client, pb);
 });
