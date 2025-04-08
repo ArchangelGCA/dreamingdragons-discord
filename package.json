@@ -1,13 +1,13 @@
 {
   "name": "dd-bot",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "The Official Discord Bot of DreamingDragons",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "deploy": "node deploy-commands.js",
     "dev": "nodemon index.js",
-    "start": "node deploy-commands.js && index.js"
+    "start": "node deploy-commands.js && node index.js"
   },
   "keywords": [],
   "author": "",
