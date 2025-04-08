@@ -1,4 +1,5 @@
 import {Client, GatewayIntentBits, Collection, Events} from 'discord.js';
+import { startDeviantArtCheckers } from './scrapers/deviantart-checker.js';
 import {config} from 'dotenv';
 import PocketBase from 'pocketbase';
 import fs from 'node:fs';
@@ -101,6 +102,7 @@ client.once(Events.ClientReady, async c => {
     }, 3 * 60 * 1000);
 
     await loadReactionRoleMessages(client, pb);
+    await startDeviantArtCheckers(client, pb);
 });
 
 // Listen for interactions (slash commands)
@@ -412,6 +414,36 @@ client.on(Events.InteractionCreate, async interaction => {
             }
         } catch (error) {
             console.error('Error handling autocomplete:', error);
+            await interaction.respond([]);
+        }
+    } else if (interaction.commandName === 'deviantart') {
+
+        const subcommand = interaction.options.getSubcommand();
+        const focusedOption = interaction.options.getFocused(true);
+
+        try {
+            if (['feed_id'].includes(focusedOption.name)) {
+
+                const filter = pb.filter(`guild_id = {:guild_id}`, {guild_id: interaction.guildId});
+                const records = await pb.collection('deviantart_feeds').getList(1, 25, {filter});
+
+                if (records.totalItems === 0) {
+                    await interaction.respond([]);
+                    return;
+                }
+
+                const choices = records.items.map(feed => {
+                    const channelName = interaction.guild.channels.cache.get(feed.channel_id)?.name || 'unknown-channel';
+                    return {
+                        name: `${feed.url.substring(0, 30)}... (Channel: #${channelName})`,
+                        value: feed.id
+                    };
+                });
+
+                await interaction.respond(choices);
+            }
+        } catch (error) {
+            console.error('Error handling DeviantArt autocomplete:', error);
             await interaction.respond([]);
         }
     }
