@@ -119,6 +119,8 @@ async function checkFeed(feed, client, pb) {
                 // Add small delay between posts (rate limits are a thing)
                 await new Promise(resolve => setTimeout(resolve, 1000));
             }
+        } else {
+            console.log(`No new deviations for feed ${feed.id}`);
         }
     } catch (error) {
         console.error(`Error checking DeviantArt feed ${feed.id}:`, error);
