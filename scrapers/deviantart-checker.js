@@ -98,6 +98,15 @@ async function checkFeed(feed, client, pb) {
                     // Get full deviation details for each new deviation
                     const fullDeviation = await getLatestDeviation(newDeviations[i].url);
 
+                    // Experimental de-duplication of author names
+                    const authorName = fullDeviation.author.name;
+                    const halfLength = Math.floor(authorName.length / 2);
+                    const firstHalf = authorName.substring(0, halfLength);
+                    const secondHalf = authorName.substring(halfLength);
+                    if (firstHalf === secondHalf) {
+                        fullDeviation.author.name = firstHalf;
+                    }
+
                     if (fullDeviation) {
                         const embed = new EmbedBuilder()
                             .setTitle(fullDeviation.title)
