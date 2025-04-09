@@ -33,7 +33,7 @@ export async function startDeviantArtCheckers(client, pb) {
 function setupFeedChecker(feed, client, pb) {
     console.log(`Setting up checker for feed ${feed.id}, URL: ${feed.url}, interval: ${feed.interval}min`);
 
-    // Run an initial check soon after startup
+    // Run an initial check soon after startup (around 30 seconds after startup)
     setTimeout(() => checkFeed(feed, client, pb), 30000);
 
     // Set up the regular interval
@@ -44,6 +44,9 @@ function setupFeedChecker(feed, client, pb) {
 async function checkFeed(feed, client, pb) {
     try {
         console.log(`Checking DeviantArt feed: ${feed.id} - ${feed.url}`);
+
+        // Fetch the latest feed data from the database
+        feed = await pb.collection('deviantart_feeds').getOne(feed.id);
 
         // Get recent deviations
         const recentDeviations = await getRecentDeviations(feed.url, 5, true);
