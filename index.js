@@ -185,6 +185,30 @@ async function handleReactionAdd(reaction, user, pb) {
             // Add the role
             await member.roles.add(roleId);
             console.log(`[Reaction Add] Added role ${roleId} to user ${user.tag} in guild ${guild.id}`);
+
+            // Send a temporary notification message
+            try {
+                const roleName = guild.roles.cache.get(roleId)?.name || "Unknown Role";
+                const roleColor = guild.roles.cache.get(roleId)?.color || 0x3498db;
+
+                const tempMessage = await message.channel.send({
+                    content: `<@${user.id}>`,
+                    embeds: [{
+                        color: roleColor,
+                        description: `✅ You've received the **${roleName}** role!`,
+                        footer: {
+                            text: "This notification will disappear in a few seconds"
+                        }
+                    }]
+                });
+
+                // Delete the notification after 5 seconds
+                setTimeout(() => {
+                    tempMessage.delete().catch(() => {});
+                }, 5000);
+            } catch (msgError) {
+                console.error("Error sending role notification:", msgError);
+            }
         }
     } catch (error) {
         console.error(`Error processing reaction add:`, error);
@@ -246,6 +270,30 @@ async function handleReactionRemove(reaction, user, pb) {
             // Remove the role
             await member.roles.remove(roleId);
             console.log(`[Reaction Remove] Removed role ${roleId} from user ${user.tag} in guild ${guild.id}`);
+
+            // Send a temporary notification message
+            try {
+                const roleName = guild.roles.cache.get(roleId)?.name || "Unknown Role";
+                const roleColor = guild.roles.cache.get(roleId)?.color || 0x3498db; // Use role color or default blue
+
+                const tempMessage = await message.channel.send({
+                    content: `<@${user.id}>`,
+                    embeds: [{
+                        color: roleColor,
+                        description: `❌ You've lost the **${roleName}** role!`,
+                        footer: {
+                            text: "This notification will disappear in a few seconds"
+                        }
+                    }]
+                });
+
+                // Delete the notification after 5 seconds
+                setTimeout(() => {
+                    tempMessage.delete().catch(() => {});
+                }, 5000);
+            } catch (msgError) {
+                console.error("Error sending role removal notification:", msgError);
+            }
         }
     } catch (error) {
         console.error(`Error processing reaction remove:`, error);
