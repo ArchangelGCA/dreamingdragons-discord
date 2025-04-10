@@ -1,3 +1,7 @@
+// Cache for level settings by guild ID
+const levelSettingsCache = new Map();
+const CACHE_TTL = 15 * 60 * 1000; // 15 minutes cache TTL
+
 /**
  * Calculates the total XP required for a specific level
  * Uses a non-linear formula: 100 * (level^1.5)
@@ -37,20 +41,54 @@ function calculateXpToNextLevel(xp) {
 }
 
 /**
+ * Gets level settings for a guild, using cache when possible
+ */
+async function getLevelSettings(guildId, pb, forceRefresh = false) {
+    const now = Date.now();
+    const cachedSettings = levelSettingsCache.get(guildId);
+
+    // Return cached settings if they exist and are not expired
+    if (!forceRefresh && cachedSettings && now - cachedSettings.timestamp < CACHE_TTL) {
+        return cachedSettings.settings;
+    }
+
+    // Fetch settings from database
+    const settingsFilter = pb.filter(`guild_id = {:guild_id}`, { guild_id: guildId });
+    const settings = await pb.collection('level_settings').getList(1, 1, { filter: settingsFilter });
+
+    // Cache the settings with timestamp
+    if (settings.totalItems > 0) {
+        levelSettingsCache.set(guildId, {
+            settings: settings.items[0],
+            timestamp: now
+        });
+        return settings.items[0];
+    }
+
+    return null;
+}
+
+/**
+ * Invalidates the settings cache for a guild
+ */
+export function invalidateLevelSettingsCache(guildId) {
+    levelSettingsCache.delete(guildId);
+}
+
+/**
  * Adds XP to a user, handles leveling up, and rewards
  */
 async function addXpToUser(userId, guildId, client, pb) {
     // Get guild settings
-    const settingsFilter = pb.filter(`guild_id = {:guild_id}`, { guild_id: guildId });
-    const settings = await pb.collection('level_settings').getList(1, 1, { filter: settingsFilter });
+    const settings = await getLevelSettings(guildId, pb);
 
-    if (settings.totalItems === 0 || !settings.items[0].enabled) {
+    if (!settings || !settings.enabled) {
         return null; // Leveling disabled for this guild
     }
 
-    const xpPerMessage = settings.items[0].xp_per_message || 20;
-    const xpCooldown = settings.items[0].xp_cooldown || 60; // Seconds
-    const notificationChannelId = settings.items[0].notification_channel_id;
+    const xpPerMessage = settings.xp_per_message || 20;
+    const xpCooldown = settings.xp_cooldown || 60; // Seconds
+    const notificationChannelId = settings.notification_channel_id;
 
     // Random XP between 75-125% of base amount to add variety
     const xpToAdd = Math.floor(xpPerMessage * (0.75 + Math.random() * 0.5));

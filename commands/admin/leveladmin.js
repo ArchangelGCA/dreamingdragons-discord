@@ -1,5 +1,10 @@
 import {SlashCommandBuilder, PermissionsBitField, EmbedBuilder} from 'discord.js';
-import {calculateLevelFromXp, calculateXpForLevel, checkAndAwardRoles} from '../../utils/leveling.js';
+import {
+    calculateLevelFromXp,
+    calculateXpForLevel,
+    checkAndAwardRoles,
+    invalidateLevelSettingsCache
+} from '../../utils/leveling.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -153,6 +158,8 @@ async function handleSetup(interaction, pb) {
             });
         }
 
+        invalidateLevelSettingsCache(interaction.guildId);
+
         await interaction.editReply(`✅ Leveling system configured successfully:
 • Level-up notifications will be sent to ${notificationChannel}
 • Base XP per message: ${xpPerMessage} (varies ±25%)
@@ -271,6 +278,8 @@ async function handleToggle(interaction, pb, enable) {
         await pb.collection('level_settings').update(existingSettings.items[0].id, {
             enabled: enable
         });
+
+        invalidateLevelSettingsCache(interaction.guildId);
 
         await interaction.editReply(`✅ Leveling system ${enable ? 'enabled' : 'disabled'}.`);
 
