@@ -56,7 +56,9 @@ const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_BOT_TOKEN)
         // );
 
         console.log(`Successfully reloaded ${data.length} application (/) commands.`);
+        process.exit(0);
     } catch (error) {
         console.error('Error deploying commands:', error);
+        process.exit(1);
     }
 })();
