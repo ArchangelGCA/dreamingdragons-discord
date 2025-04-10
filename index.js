@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { loadReactionRoleMessages } from "./init/init.js";
+import { addXpToUser } from './utils/leveling.js';
 
 // Load environment variables
 config();
@@ -337,6 +338,21 @@ async function handleAutocomplete(interaction, pb) {
     }
 }
 
+/**
+ * Handle message creation events
+ */
+async function handleMessageCreate(message, pb) {
+    // Ignore bots, DMs, and commands
+    if (message.author.bot || !message.guild || message.content.startsWith('/')) return;
+
+    try {
+        // Award XP (will handle cooldowns internally)
+        const result = await addXpToUser(message.author.id, message.guild.id, client, pb);
+    } catch (error) {
+        console.error('Error in XP system:', error);
+    }
+}
+
 // Main execution flow
 async function main() {
     try {
@@ -359,6 +375,7 @@ async function main() {
         client.on(Events.InteractionCreate, interaction => handleAutocomplete(interaction, pb));
         client.on(Events.MessageReactionAdd, (reaction, user) => handleReactionAdd(reaction, user, pb));
         client.on(Events.MessageReactionRemove, (reaction, user) => handleReactionRemove(reaction, user, pb));
+        client.on(Events.MessageCreate, (message) => handleMessageCreate(message, pb));
 
         // Login to Discord
         console.log('Logging into Discord...');
