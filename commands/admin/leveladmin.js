@@ -1,5 +1,5 @@
 import {SlashCommandBuilder, PermissionsBitField, EmbedBuilder} from 'discord.js';
-import {calculateLevelFromXp, checkAndAwardRoles} from '../../utils/leveling.js';
+import {calculateLevelFromXp, calculateXpForLevel, checkAndAwardRoles} from '../../utils/leveling.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -66,7 +66,24 @@ export default {
         .addSubcommand(subcommand =>
             subcommand
                 .setName('sync')
-                .setDescription('Sync user roles with their levels')),
+                .setDescription('Sync user roles with their levels'))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('migrateroles')
+                .setDescription('Grant XP to users based on level roles they already have'))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('setlevel')
+                .setDescription('Set a user\'s level manually')
+                .addUserOption(option =>
+                    option.setName('user')
+                        .setDescription('User to set level for')
+                        .setRequired(true))
+                .addIntegerOption(option =>
+                    option.setName('level')
+                        .setDescription('Level to set for the user')
+                        .setMinValue(1)
+                        .setRequired(true))),
 
     async execute(interaction, pb) {
         const subcommand = interaction.options.getSubcommand();
@@ -92,6 +109,12 @@ export default {
                 break;
             case 'sync':
                 await handleSync(interaction, pb);
+                break;
+            case 'migrateroles':
+                await handleMigrateRoles(interaction, pb);
+                break;
+            case 'setlevel':
+                await handleSetLevel(interaction, pb);
                 break;
             default:
                 await interaction.reply({content: 'Unknown subcommand', ephemeral: true});
@@ -292,5 +315,163 @@ async function handleSync(interaction, pb) {
     } catch (error) {
         console.error('Error syncing roles:', error);
         await interaction.editReply('❌ Failed to sync user roles.');
+    }
+}
+
+async function handleMigrateRoles(interaction, pb) {
+    await interaction.deferReply({ ephemeral: true });
+
+    try {
+        // Get all level rewards to know which roles correspond to which levels
+        const rewardFilter = pb.filter(`guild_id = {:guild_id}`, { guild_id: interaction.guildId });
+        const rewards = await pb.collection('level_rewards').getFullList({
+            filter: rewardFilter,
+            sort: '+level'
+        });
+
+        if (rewards.length === 0) {
+            return interaction.editReply('❌ No level rewards defined. Please set up level rewards first.');
+        }
+
+        // Create a map of role IDs to their corresponding levels
+        const roleLevels = {};
+        for (const reward of rewards) {
+            roleLevels[reward.role_id] = reward.level;
+        }
+
+        await interaction.editReply('⏳ Migrating roles to XP. Scanning all members...');
+
+        // Get guild members
+        const members = await interaction.guild.members.fetch();
+        let updated = 0;
+        let skipped = 0;
+        let errors = 0;
+
+        for (const [memberId, member] of members) {
+            // Skip bots
+            if (member.user.bot) {
+                skipped++;
+                continue;
+            }
+
+            try {
+                // Find the highest level role the member has
+                let highestLevel = 0;
+                for (const [roleId, role] of member.roles.cache) {
+                    if (roleLevels[roleId] && roleLevels[roleId] > highestLevel) {
+                        highestLevel = roleLevels[roleId];
+                    }
+                }
+
+                if (highestLevel === 0) {
+                    // No level roles found for this user
+                    skipped++;
+                    continue;
+                }
+
+                // Check if user already has level data
+                const userFilter = pb.filter(`guild_id = {:guild_id} && user_id = {:user_id}`,
+                    { guild_id: interaction.guildId, user_id: memberId });
+                const userData = await pb.collection('user_levels').getList(1, 1, { filter: userFilter });
+
+                // Calculate minimum XP needed for this level
+                let totalRequiredXp = 0;
+                for (let i = 1; i <= highestLevel; i++) {
+                    totalRequiredXp += calculateXpForLevel(i);
+                }
+
+                // Add a little extra to prevent edge cases
+                totalRequiredXp += 10;
+
+                if (userData.totalItems > 0) {
+                    const existingXp = userData.items[0].xp;
+                    const existingLevel = calculateLevelFromXp(existingXp);
+
+                    // Only update if their actual level is lower than the role level
+                    if (existingLevel < highestLevel) {
+                        await pb.collection('user_levels').update(userData.items[0].id, {
+                            xp: totalRequiredXp,
+                            level: highestLevel,
+                            last_message_time: new Date().toISOString()
+                        });
+                        updated++;
+                    } else {
+                        skipped++;
+                    }
+                } else {
+                    // Create new record with appropriate XP
+                    await pb.collection('user_levels').create({
+                        guild_id: interaction.guildId,
+                        user_id: memberId,
+                        xp: totalRequiredXp,
+                        level: highestLevel,
+                        last_message_time: new Date().toISOString()
+                    });
+                    updated++;
+                }
+            } catch (error) {
+                console.error(`Error processing user ${memberId}:`, error);
+                errors++;
+            }
+        }
+
+        await interaction.editReply(`✅ Role migration complete:
+• Users updated: ${updated}
+• Users skipped: ${skipped} (bots or no level roles)
+• Errors: ${errors}`);
+
+    } catch (error) {
+        console.error('Error migrating roles to XP:', error);
+        await interaction.editReply('❌ Failed to migrate roles to XP.');
+    }
+}
+
+async function handleSetLevel(interaction, pb) {
+    await interaction.deferReply({ ephemeral: true });
+
+    const targetUser = interaction.options.getUser('user');
+    const newLevel = interaction.options.getInteger('level');
+
+    try {
+        // Calculate XP required for this level
+        let totalXpRequired = 0;
+        for (let i = 1; i <= newLevel; i++) {
+            totalXpRequired += calculateXpForLevel(i);
+        }
+
+        // Ensure the user has enough XP to be solidly at this level (add a small buffer)
+        totalXpRequired += 10;
+
+        // Check if user has level data
+        const userFilter = pb.filter(`guild_id = {:guild_id} && user_id = {:user_id}`,
+            { guild_id: interaction.guildId, user_id: targetUser.id });
+        const userData = await pb.collection('user_levels').getList(1, 1, { filter: userFilter });
+
+        if (userData.totalItems > 0) {
+            // Update existing record
+            await pb.collection('user_levels').update(userData.items[0].id, {
+                xp: totalXpRequired,
+                level: newLevel,
+                last_message_time: new Date().toISOString()
+            });
+        } else {
+            // Create new record
+            await pb.collection('user_levels').create({
+                guild_id: interaction.guildId,
+                user_id: targetUser.id,
+                xp: totalXpRequired,
+                level: newLevel,
+                last_message_time: new Date().toISOString()
+            });
+        }
+
+        // Award appropriate roles
+        await checkAndAwardRoles(targetUser.id, interaction.guildId, newLevel, interaction.client, pb);
+
+        await interaction.editReply(`✅ ${targetUser.username}'s level has been set to ${newLevel} with ${totalXpRequired} XP.`);
+
+    } catch (error) {
+        console.error('Error setting user level:', error);
+        await interaction.editReply('❌ Failed to set user level.');
     }
 }
