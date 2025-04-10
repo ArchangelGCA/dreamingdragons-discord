@@ -1,6 +1,10 @@
 // Cache for level settings by guild ID
 const levelSettingsCache = new Map();
 const CACHE_TTL = 15 * 60 * 1000; // 15 minutes cache TTL
+const userXpCache = new Map();
+const USER_CACHE_TTL = 30 * 60 * 1000; // 30 minutes cache TTL
+const pendingUpdates = new Map();
+const UPDATE_BATCH_INTERVAL = 60 * 1000; // Flush updates every minute
 
 /**
  * Calculates the total XP required for a specific level
@@ -71,7 +75,7 @@ async function getLevelSettings(guildId, pb, forceRefresh = false) {
 /**
  * Invalidates the settings cache for a guild
  */
-export function invalidateLevelSettingsCache(guildId) {
+function invalidateLevelSettingsCache(guildId) {
     levelSettingsCache.delete(guildId);
 }
 
@@ -79,72 +83,91 @@ export function invalidateLevelSettingsCache(guildId) {
  * Adds XP to a user, handles leveling up, and rewards
  */
 async function addXpToUser(userId, guildId, client, pb) {
-    // Get guild settings
+    // Get guild settings from cache when possible
     const settings = await getLevelSettings(guildId, pb);
 
+    // Early return if leveling is disabled
     if (!settings || !settings.enabled) {
-        return null; // Leveling disabled for this guild
+        return null;
     }
 
     const xpPerMessage = settings.xp_per_message || 20;
     const xpCooldown = settings.xp_cooldown || 60; // Seconds
     const notificationChannelId = settings.notification_channel_id;
 
-    // Random XP between 75-125% of base amount to add variety
-    const xpToAdd = Math.floor(xpPerMessage * (0.75 + Math.random() * 0.5));
+    // Create unique key for this user in this guild
+    const cacheKey = `${guildId}-${userId}`;
+    const now = Date.now();
 
-    // Get user's current level data
-    const userFilter = pb.filter(`guild_id = {:guild_id} && user_id = {:user_id}`,
-        { guild_id: guildId, user_id: userId });
-    const userData = await pb.collection('user_levels').getList(1, 1, { filter: userFilter });
-
-    let userRecord;
-    let oldLevel = 0;
-
-    // Check cooldown and update or create record
-    const now = new Date();
-
-    if (userData.totalItems > 0) {
-        userRecord = userData.items[0];
-        oldLevel = calculateLevelFromXp(userRecord.xp);
-
-        // Check cooldown
-        const lastMessage = new Date(userRecord.last_message_time);
-        const timeDiff = (now - lastMessage) / 1000; // in seconds
-
-        if (timeDiff < xpCooldown) {
-            return null; // On cooldown
-        }
-
-        // Update XP
-        await pb.collection('user_levels').update(userRecord.id, {
-            xp: userRecord.xp + xpToAdd,
-            last_message_time: now.toISOString(),
-        });
-
-        userRecord.xp += xpToAdd;
-    } else {
-        // Create new record
-        userRecord = await pb.collection('user_levels').create({
-            guild_id: guildId,
-            user_id: userId,
-            xp: xpToAdd,
-            level: 0,
-            last_message_time: now.toISOString(),
-        });
+    // Check if user is in cache and not expired
+    let userData = userXpCache.get(cacheKey);
+    if (userData && (now - userData.cacheTime) > USER_CACHE_TTL) {
+        // Cache expired, remove it
+        userXpCache.delete(cacheKey);
+        userData = null;
     }
 
-    // Calculate new level
-    const newLevel = calculateLevelFromXp(userRecord.xp);
+    // Random XP between 75-125% of base amount
+    const xpToAdd = Math.floor(xpPerMessage * (0.75 + Math.random() * 0.5));
 
-    // Handle level-up
-    if (newLevel > oldLevel) {
-        // Update level in database
-        await pb.collection('user_levels').update(userRecord.id, {
-            level: newLevel,
-        });
+    let leveledUp = false;
+    let oldLevel = 0;
+    let newLevel = 0;
 
-        // Send level-up notification if channel is set
+    if (!userData) {
+        // Not in cache, fetch from database
+        const userFilter = pb.filter(`guild_id = {:guild_id} && user_id = {:user_id}`,
+            { guild_id: guildId, user_id: userId });
+        const result = await pb.collection('user_levels').getList(1, 1, { filter: userFilter });
+
+        if (result.totalItems > 0) {
+            // Existing user
+            userData = {
+                id: result.items[0].id,
+                xp: result.items[0].xp,
+                level: calculateLevelFromXp(result.items[0].xp),
+                lastMessageTime: new Date(result.items[0].last_message_time).getTime(),
+                lastDbSync: now,
+                cacheTime: now // Add timestamp when this was cached
+            };
+        } else {
+            // New user
+            userData = {
+                id: null,
+                xp: 0,
+                level: 0,
+                lastMessageTime: 0,
+                lastDbSync: 0,
+                cacheTime: now
+            };
+        }
+
+        // Add to cache
+        userXpCache.set(cacheKey, userData);
+    }
+
+    // Check cooldown
+    if ((now - userData.lastMessageTime) < (xpCooldown * 1000)) {
+        return null; // On cooldown
+    }
+
+    // User passed cooldown, update cached data
+    oldLevel = userData.level;
+    userData.xp += xpToAdd;
+    userData.lastMessageTime = now;
+    userData.level = calculateLevelFromXp(userData.xp);
+    newLevel = userData.level;
+    leveledUp = newLevel > oldLevel;
+
+    // Schedule database update
+    scheduleUserUpdate(cacheKey, userData, guildId, userId, pb);
+
+    // Handle level-up immediately if needed
+    if (leveledUp) {
+        // Force immediate database update on level-up
+        await syncUserToDatabase(userData, guildId, userId, pb);
+
+        // Send notification if configured
         if (notificationChannelId) {
             try {
                 const guild = await client.guilds.fetch(guildId);
@@ -153,7 +176,7 @@ async function addXpToUser(userId, guildId, client, pb) {
 
                 if (channel) {
                     await channel.send({
-                        content: `🎉 Congratulations ${member.toString()}! You leveled up to **Level ${newLevel}**!`
+                        content: `Congratulations ${member}! You've reached **Level ${newLevel}**!`
                     });
                 }
             } catch (error) {
@@ -161,58 +184,148 @@ async function addXpToUser(userId, guildId, client, pb) {
             }
         }
 
-        // Award role rewards if any
+        // Award role rewards
         await checkAndAwardRoles(userId, guildId, newLevel, client, pb);
-
-        return {
-            levelUp: true,
-            oldLevel,
-            newLevel,
-        };
     }
 
     return {
-        levelUp: false,
-        level: newLevel,
-        xp: userRecord.xp,
+        leveledUp,
+        oldLevel,
+        newLevel,
+        xpGained: xpToAdd
     };
 }
 
 /**
- * Checks and awards role rewards for a user at their current level
+ * Check and award any level-based role rewards
  */
 async function checkAndAwardRoles(userId, guildId, userLevel, client, pb) {
     try {
-        const rewardFilter = pb.filter(`guild_id = {:guild_id} && level <= {:level}`,
+        // Get all level rewards for this guild
+        const filter = pb.filter(`guild_id = {:guild_id} && level <= {:level}`,
             { guild_id: guildId, level: userLevel });
-        const rewards = await pb.collection('level_rewards').getList(1, 50, {
-            filter: rewardFilter,
+
+        const rewards = await pb.collection('level_rewards').getFullList({
+            filter,
             sort: '+level'
         });
 
-        if (rewards.totalItems === 0) {
+        if (rewards.length === 0) {
             return; // No rewards to give
         }
 
+        // Get the user's member object
         const guild = await client.guilds.fetch(guildId);
         const member = await guild.members.fetch(userId);
 
-        // Award all roles up to and including the user's level
-        for (const reward of rewards.items) {
-            const role = guild.roles.cache.get(reward.role_id);
-            if (role && !member.roles.cache.has(reward.role_id)) {
-                await member.roles.add(reward.role_id);
+        // Award all roles the user qualifies for but doesn't have yet
+        for (const reward of rewards) {
+            // Check if user already has this role
+            if (!member.roles.cache.has(reward.role_id)) {
+                try {
+                    await member.roles.add(reward.role_id);
+                    console.log(`Awarded role ${reward.role_id} to user ${userId} for reaching level ${reward.level}`);
+                } catch (roleError) {
+                    console.error(`Failed to award role ${reward.role_id}:`, roleError);
+                }
             }
         }
     } catch (error) {
-        console.error('Error awarding role rewards:', error);
+        console.error('Error checking/awarding level roles:', error);
     }
 }
+
+/**
+ * Schedule a user update to be processed in batch
+ */
+function scheduleUserUpdate(cacheKey, userData, guildId, userId, pb) {
+    pendingUpdates.set(cacheKey, { userData, guildId, userId });
+
+    // Set up the batch update interval if not already running
+    if (!global.xpUpdateInterval) {
+        global.xpUpdateInterval = setInterval(() => processPendingUpdates(pb), UPDATE_BATCH_INTERVAL);
+
+        // Ensure interval is cleared on process exit
+        process.on('exit', () => {
+            if (global.xpUpdateInterval) {
+                clearInterval(global.xpUpdateInterval);
+            }
+        });
+    }
+}
+
+/**
+ * Process all pending user updates in batch
+ */
+async function processPendingUpdates(pb) {
+    if (pendingUpdates.size === 0) return;
+
+    console.log(`Processing ${pendingUpdates.size} pending XP updates`);
+
+    const updates = [...pendingUpdates.entries()];
+    pendingUpdates.clear();
+
+    for (const [cacheKey, { userData, guildId, userId }] of updates) {
+        try {
+            await syncUserToDatabase(userData, guildId, userId, pb);
+        } catch (error) {
+            console.error(`Error updating XP for user ${userId} in guild ${guildId}:`, error);
+            // Put failed update back in queue
+            pendingUpdates.set(cacheKey, { userData, guildId, userId });
+        }
+    }
+}
+
+/**
+ * Sync a user's XP data to the database
+ */
+async function syncUserToDatabase(userData, guildId, userId, pb) {
+    const now = new Date();
+
+    if (userData.id) {
+        // Update existing record
+        await pb.collection('user_levels').update(userData.id, {
+            xp: userData.xp,
+            level: userData.level,
+            last_message_time: now.toISOString()
+        });
+    } else {
+        // Create new record
+        const newRecord = await pb.collection('user_levels').create({
+            guild_id: guildId,
+            user_id: userId,
+            xp: userData.xp,
+            level: userData.level,
+            last_message_time: now.toISOString()
+        });
+
+        // Update cache with the new record ID
+        userData.id = newRecord.id;
+    }
+
+    userData.lastDbSync = Date.now();
+}
+
+/**
+ * Clean up expired user cache entries
+ */
+function cleanupExpiredUserCache() {
+    const now = Date.now();
+    for (const [key, userData] of userXpCache.entries()) {
+        if ((now - userData.cacheTime) > USER_CACHE_TTL) {
+            userXpCache.delete(key);
+        }
+    }
+}
+
+// Periodic cache cleanup
+setInterval(cleanupExpiredUserCache, USER_CACHE_TTL / 2);
 
 export {
     calculateXpForLevel,
     calculateLevelFromXp,
     calculateXpToNextLevel,
+    invalidateLevelSettingsCache,
     addXpToUser,
     checkAndAwardRoles
 };
