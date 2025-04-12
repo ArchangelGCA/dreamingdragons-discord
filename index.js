@@ -1,7 +1,7 @@
 import { Client, GatewayIntentBits, Collection, Events } from 'discord.js';
 import { startDeviantArtCheckers } from './scrapers/deviantart-checker.js';
 import { config } from 'dotenv';
-import PocketBase from 'pocketbase';
+import {pb} from './utils/pocketbase.js'
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -26,27 +26,6 @@ const client = new Client({
 
 // Store commands for easy access
 client.commands = new Collection();
-
-/**
- * Initialize PocketBase connection
- * @returns {Promise<PocketBase>} Authenticated PocketBase instance
- */
-async function initializePocketBase() {
-    const pb = new PocketBase(process.env.POCKETBASE_URL);
-
-    try {
-        await pb.admins.authWithPassword(
-            process.env.POCKETBASE_ADMIN_EMAIL,
-            process.env.POCKETBASE_ADMIN_PASSWORD
-        );
-        pb.autoCancellation(false);
-        console.log('PocketBase admin authenticated successfully.');
-        return pb;
-    } catch (error) {
-        console.error('PocketBase admin authentication failed:', error);
-        process.exit(1);
-    }
-}
 
 /**
  * Load command handlers from the commands directory
@@ -356,9 +335,6 @@ async function handleMessageCreate(message, pb) {
 // Main execution flow
 async function main() {
     try {
-        // Initialize PocketBase
-        const pb = await initializePocketBase();
-
         // Load command handlers
         await loadCommands();
 
