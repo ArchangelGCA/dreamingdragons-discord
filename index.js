@@ -377,8 +377,6 @@ async function main() {
         client.on(Events.InteractionCreate, interaction => handleAutocomplete(interaction, pb));
         client.on(Events.MessageReactionAdd, (reaction, user) => handleReactionAdd(reaction, user, pb));
         client.on(Events.MessageReactionRemove, (reaction, user) => handleReactionRemove(reaction, user, pb));
-        client.on(Events.MessageReactionAdd, (reaction, user) => handleStarReaction(reaction, user, true, client, pb)); // TODO: Use only one handler and implement caching
-        client.on(Events.MessageReactionRemove, (reaction, user) => handleStarReaction(reaction, user, false, client, pb)); // TODO: Use only one handler and implement caching
         client.on(Events.MessageCreate, (message) => handleMessageCreate(message, pb));
 
         // Login to Discord
