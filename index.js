@@ -1,7 +1,7 @@
 import { Client, GatewayIntentBits, Collection, Events } from 'discord.js';
 import { startDeviantArtCheckers } from './scrapers/deviantart-checker.js';
 import { config } from 'dotenv';
-import {pb} from './utils/pocketbase.js'
+import {initPocketBase} from './utils/pocketbase.js'
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -13,6 +13,8 @@ config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+let pb = null;
+
 
 // Initialize Discord client with required intents
 const client = new Client({
@@ -87,6 +89,29 @@ function setupPresenceRotation() {
             status: 'online'
         });
     }, 3 * 60 * 1000);
+}
+
+/**
+ * Setup PocketBase refresh init
+ */
+async function setupPocketBaseRefresh() {
+
+    console.log('Setting up PocketBase refresh...');
+
+    // First init.
+    if (!pb) {
+        console.log('Initializing PocketBase...');
+        pb = await initPocketBase();
+    }
+
+    setInterval(async () => {
+        try {
+            pb = await initPocketBase();
+            console.log('PocketBase refreshed successfully.');
+        } catch (error) {
+            console.error('Error refreshing PocketBase:', error);
+        }
+    }, 4 * 60 * 60 * 1000); // 4 hours
 }
 
 /**
@@ -342,6 +367,7 @@ async function main() {
         client.once(Events.ClientReady, async c => {
             console.log(`Ready! Logged in as ${c.user.tag}`);
 
+            await setupPocketBaseRefresh();
             setupPresenceRotation();
             await loadReactionRoleMessages(client, pb);
             await startDeviantArtCheckers(client, pb);
@@ -351,6 +377,8 @@ async function main() {
         client.on(Events.InteractionCreate, interaction => handleAutocomplete(interaction, pb));
         client.on(Events.MessageReactionAdd, (reaction, user) => handleReactionAdd(reaction, user, pb));
         client.on(Events.MessageReactionRemove, (reaction, user) => handleReactionRemove(reaction, user, pb));
+        client.on(Events.MessageReactionAdd, (reaction, user) => handleStarReaction(reaction, user, true, client, pb)); // TODO: Use only one handler and implement caching
+        client.on(Events.MessageReactionRemove, (reaction, user) => handleStarReaction(reaction, user, false, client, pb)); // TODO: Use only one handler and implement caching
         client.on(Events.MessageCreate, (message) => handleMessageCreate(message, pb));
 
         // Login to Discord

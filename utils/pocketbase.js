@@ -8,8 +8,12 @@ let pbInstance = null;
 let lastAuthTime = 0;
 const AUTH_TIMEOUT = 14 * 60 * 60 * 1000; // 14 hours in ms (PocketBase tokens expire after 15h)
 
-// Initialize PocketBase
-async function initPocketBase() {
+/**
+ * Initializes PocketBase and authenticates with admin credentials.
+ * @returns {Promise<Client>}
+ */
+export async function initPocketBase() {
+
     const now = Date.now();
 
     // If we have a valid cached instance
@@ -36,10 +40,22 @@ async function initPocketBase() {
     }
 }
 
+/**
+ * Fetches the PocketBase instance.
+ * @returns {Promise<Client>}
+ * */
 const pbPromise = initPocketBase();
 
+/**
+ * Fetches the PocketBase instance.
+ * @returns {Promise<Client>}
+ */
 export async function getPb() {
     return await pbPromise;
 }
 
+/**
+ * PocketBase client instance.
+ * @type {Client}
+ */
 export const pb = await initPocketBase();
