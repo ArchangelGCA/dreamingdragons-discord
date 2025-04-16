@@ -5,57 +5,56 @@ import { config } from 'dotenv';
 config();
 
 let pbInstance = null;
-let lastAuthTime = 0;
-const AUTH_TIMEOUT = 14 * 60 * 60 * 1000; // 14 hours in ms (PocketBase tokens expire after 15h)
+let initializationPromise = null;
 
 /**
- * Initializes PocketBase and authenticates with admin credentials.
- * @returns {Promise<Client>}
+ * Initializes and authenticates the PocketBase instance if it hasn't been already.
+ * Handles the singleton pattern.
+ * @returns {Promise<PocketBase>} A promise that resolves with the initialized PocketBase instance.
  */
-export async function initPocketBase() {
-
-    const now = Date.now();
-
-    // If we have a valid cached instance
-    if (pbInstance && pbInstance.authStore.isValid && (now - lastAuthTime) < AUTH_TIMEOUT) {
+async function initializePocketBaseSingleton() {
+    if (pbInstance) {
         return pbInstance;
     }
 
-    // Otherwise, create a new instance
-    pbInstance = new PocketBase(process.env.POCKETBASE_URL);
-
-    // Authenticate with the admin credentials
-    try {
-        await pbInstance.collection('_superusers').authWithPassword(
-            process.env.POCKETBASE_ADMIN_EMAIL,
-            process.env.POCKETBASE_ADMIN_PASSWORD
-        );
-        pbInstance.autoCancellation(false);
-        lastAuthTime = now;
-        console.log('PocketBase admin authenticated successfully.');
-        return pbInstance;
-    } catch (error) {
-        console.error('PocketBase admin authentication failed:', error);
-        process.exit(1);
+    if (initializationPromise) {
+        return await initializationPromise;
     }
+
+    initializationPromise = (async () => {
+        console.log('Initializing PocketBase connection...');
+        const pb = new PocketBase(process.env.POCKETBASE_URL);
+
+        pb.autoCancellation(false);
+
+        try {
+            await pb.collection('_superusers').authWithPassword(
+                process.env.POCKETBASE_ADMIN_EMAIL,
+                process.env.POCKETBASE_ADMIN_PASSWORD
+            );
+            console.log('PocketBase admin authenticated successfully.');
+
+            pb.authStore.onChange((token, model) => {
+                console.log('[PocketBase Auth] Store changed. Token:', token ? 'present' : 'absent', 'Model:', model?.email || 'none');
+            }, true);
+
+            pbInstance = pb;
+            return pbInstance;
+        } catch (error) {
+            console.error('CRITICAL: PocketBase admin authentication failed during initialization:', error);
+            initializationPromise = null;
+            process.exit(1);
+        }
+    })();
+
+    return await initializationPromise;
 }
 
 /**
- * Fetches the PocketBase instance.
- * @returns {Promise<Client>}
- * */
-const pbPromise = initPocketBase();
-
-/**
- * Fetches the PocketBase instance.
- * @returns {Promise<Client>}
+ * Gets the singleton PocketBase instance.
+ * Ensures it's initialized before returning.
+ * @returns {Promise<PocketBase>} The initialized PocketBase client instance.
  */
 export async function getPb() {
-    return await pbPromise;
+    return await initializePocketBaseSingleton();
 }
-
-/**
- * PocketBase client instance.
- * @type {Client}
- */
-export const pb = await initPocketBase();
