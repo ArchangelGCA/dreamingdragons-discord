@@ -1,5 +1,6 @@
 import {SlashCommandBuilder, EmbedBuilder} from 'discord.js';
 import {calculateLevelFromXp} from '../../utils/leveling.js';
+import {getPb} from "../../utils/pocketbase.js";
 
 export default {
     data: new SlashCommandBuilder()
@@ -11,8 +12,9 @@ export default {
                 .setMinValue(1)
                 .setRequired(false)),
 
-    async execute(interaction, pb) {
+    async execute(interaction) {
         await interaction.deferReply();
+        const pb = await getPb();
 
         const page = interaction.options.getInteger('page') || 1;
         const perPage = 10;

@@ -1,5 +1,6 @@
 import {SlashCommandBuilder, EmbedBuilder, PermissionsBitField, ChannelType, InteractionContextType} from 'discord.js';
 import {parseColorHex} from "../../utils/utils.js";
+import {getPb} from "../../utils/pocketbase.js";
 
 // Helper function to validate and extract emoji identifier
 function getEmojiIdentifier(emojiString) {
@@ -152,7 +153,7 @@ export default {
                         .setRequired(false))
         ),
 
-    async execute(interaction, pb) {
+    async execute(interaction) {
         if (!interaction.inGuild()) {
             await interaction.reply({content: 'This command can only be used in a server.', flags: { ephemeral: true }});
             return;
@@ -176,6 +177,8 @@ export default {
         }
 
         const subcommand = interaction.options.getSubcommand();
+
+        const pb = await getPb();
 
         // Commands switch
         switch (subcommand) {

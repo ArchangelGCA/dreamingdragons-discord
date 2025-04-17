@@ -1,6 +1,10 @@
-export async function loadReactionRoleMessages(client, pb) {
+import {getPb} from "../utils/pocketbase.js";
+
+export async function loadReactionRoleMessages(client) {
     try {
         console.log('Loading existing reaction role messages...');
+
+        const pb = await getPb();
 
         // Get all reaction role configurations from PocketBase
         const records = await pb.collection('reaction_roles').getFullList();
@@ -32,7 +36,7 @@ export async function loadReactionRoleMessages(client, pb) {
 
                 for (const messageId of messageIds) {
                     try {
-                        const message = await channel.messages.fetch(messageId);
+                        await channel.messages.fetch(messageId);
                         console.log(`Cached reaction role message ${messageId} in channel ${channelId}`);
                     } catch (msgError) {
                         console.warn(`Failed to fetch message ${messageId} in channel ${channelId}: ${msgError.message}`);

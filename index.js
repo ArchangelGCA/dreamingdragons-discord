@@ -14,8 +14,6 @@ config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-let pbInstance = null;
-
 // Initialize Discord client with required intents
 const client = new Client({
     intents: [
@@ -97,13 +95,16 @@ function setupPresenceRotation() {
 /**
  * Handle chat command interactions
  */
-async function handleCommandInteraction(interaction, pb) {
+async function handleCommandInteraction(interaction) {
+
+    const pb = await getPb();
+
     if (!pb) {
         console.error("PocketBase instance unavailable for command interaction.");
         if (!interaction.replied && !interaction.deferred) {
             try {
                 await interaction.reply({content: 'Bot is initializing, please wait.', ephemeral: true});
-            } catch { /* ignore */
+            } catch {
             }
         }
         return;
@@ -122,7 +123,7 @@ async function handleCommandInteraction(interaction, pb) {
     }
 
     try {
-        await command.execute(interaction, pb);
+        await command.execute(interaction);
     } catch (error) {
         console.error(`Error executing command ${interaction.commandName}:`, error);
         const response = {content: 'There was an error executing this command!', ephemeral: true};
@@ -141,7 +142,10 @@ async function handleCommandInteraction(interaction, pb) {
 /**
  * Process message reaction add events
  */
-async function handleReactionAdd(reaction, user, pb) {
+async function handleReactionAdd(reaction, user) {
+
+    const pb = await getPb();
+
     if (!pb || user.bot || !reaction.message.guild) return;
 
     try {
@@ -205,7 +209,10 @@ async function handleReactionAdd(reaction, user, pb) {
 /**
  * Process message reaction remove events
  */
-async function handleReactionRemove(reaction, user, pb) {
+async function handleReactionRemove(reaction, user) {
+
+    const pb = await getPb();
+
     if (!pb || user.bot || !reaction.message.guild) return;
 
     try {
@@ -278,7 +285,10 @@ async function handleReactionRemove(reaction, user, pb) {
 /**
  * Handle autocomplete interactions
  */
-async function handleAutocomplete(interaction, pb) {
+async function handleAutocomplete(interaction) {
+
+    const pb = await getPb();
+
     if (!pb || !interaction.isAutocomplete() || !interaction.guild) return;
 
     const {commandName} = interaction;
@@ -341,7 +351,9 @@ async function handleAutocomplete(interaction, pb) {
 /**
  * Handle message creation events for XP
  */
-async function handleMessageCreate(message, pb) {
+async function handleMessageCreate(message) {
+    const pb = await getPb();
+
     if (!pb || message.author.bot || !message.guild || message.interaction) return;
     if (!message.content && message.attachments.size === 0 && message.embeds.length === 0) return;
 
@@ -363,12 +375,11 @@ async function main() {
         client.once(Events.ClientReady, async c => {
             console.log(`Ready! Logged in as ${c.user.tag}`);
             try {
-                pbInstance = await getPb();
                 console.log('PocketBase connection established.');
 
                 setupPresenceRotation();
-                await loadReactionRoleMessages(client, pbInstance);
-                await startDeviantArtCheckers(client, pbInstance);
+                await loadReactionRoleMessages(client);
+                await startDeviantArtCheckers(client);
 
             } catch (error) {
                 console.error("FATAL: Failed to initialize PocketBase during ClientReady.", error);
@@ -377,12 +388,12 @@ async function main() {
         });
 
         client.on(Events.InteractionCreate, interaction => {
-            if (interaction.isChatInputCommand()) handleCommandInteraction(interaction, pbInstance);
-            else if (interaction.isAutocomplete()) handleAutocomplete(interaction, pbInstance);
+            if (interaction.isChatInputCommand()) handleCommandInteraction(interaction);
+            else if (interaction.isAutocomplete()) handleAutocomplete(interaction);
         });
-        client.on(Events.MessageReactionAdd, (reaction, user) => handleReactionAdd(reaction, user, pbInstance));
-        client.on(Events.MessageReactionRemove, (reaction, user) => handleReactionRemove(reaction, user, pbInstance));
-        client.on(Events.MessageCreate, (message) => handleMessageCreate(message, pbInstance));
+        client.on(Events.MessageReactionAdd, (reaction, user) => handleReactionAdd(reaction, user));
+        client.on(Events.MessageReactionRemove, (reaction, user) => handleReactionRemove(reaction, user));
+        client.on(Events.MessageCreate, (message) => handleMessageCreate(message));
 
         // Login to Discord
         console.log('Logging into Discord...');

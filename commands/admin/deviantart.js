@@ -1,4 +1,5 @@
 import { SlashCommandBuilder, PermissionsBitField, ChannelType, EmbedBuilder } from 'discord.js';
+import {getPb} from "../../utils/pocketbase.js";
 
 export default {
     data: new SlashCommandBuilder()
@@ -76,8 +77,10 @@ export default {
                         .setRequired(true))
         ),
 
-    async execute(interaction, pb) {
+    async execute(interaction) {
         const subcommand = interaction.options.getSubcommand();
+
+        const pb = await getPb();
 
         switch (subcommand) {
             case 'add':
@@ -153,7 +156,7 @@ async function handleAdd(interaction, pb) {
             known_deviations: [] // Empty array to start
         };
 
-        const record = await pb.collection('deviantart_feeds').create(data);
+        await pb.collection('deviantart_feeds').create(data);
 
         await interaction.editReply(`✅ DeviantArt feed added!\n**URL**: ${url}\n**Channel**: ${channel}\n**Check interval**: ${interval} minutes`);
     } catch (error) {
@@ -209,9 +212,8 @@ async function handleEdit(interaction, pb) {
 
     try {
         // Check if feed exists
-        let feed;
         try {
-            feed = await pb.collection('deviantart_feeds').getOne(feedId);
+            await pb.collection('deviantart_feeds').getOne(feedId);
         } catch (err) {
             await interaction.editReply(`Feed with ID ${feedId} not found.`);
             return;
@@ -262,9 +264,8 @@ async function handleRemove(interaction, pb) {
 
     try {
         // Check if feed exists
-        let feed;
         try {
-            feed = await pb.collection('deviantart_feeds').getOne(feedId);
+            await pb.collection('deviantart_feeds').getOne(feedId);
         } catch (err) {
             await interaction.editReply(`Feed with ID ${feedId} not found.`);
             return;

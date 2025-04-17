@@ -1,5 +1,6 @@
 import {SlashCommandBuilder, EmbedBuilder} from 'discord.js';
 import {calculateLevelFromXp, calculateXpToNextLevel} from '../../utils/leveling.js';
+import {getPb} from "../../utils/pocketbase.js";
 
 export default {
     data: new SlashCommandBuilder()
@@ -10,8 +11,9 @@ export default {
                 .setDescription('The user to check (defaults to yourself)')
                 .setRequired(false)),
 
-    async execute(interaction, pb) {
+    async execute(interaction) {
         await interaction.deferReply();
+        const pb = await getPb();
 
         const targetUser = interaction.options.getUser('user') || interaction.user;
         const isOwnLevel = targetUser.id === interaction.user.id;

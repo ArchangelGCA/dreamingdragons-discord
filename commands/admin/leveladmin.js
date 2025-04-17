@@ -5,6 +5,7 @@ import {
     checkAndAwardRoles,
     invalidateLevelSettingsCache
 } from '../../utils/leveling.js';
+import {getPb} from "../../utils/pocketbase.js";
 
 export default {
     data: new SlashCommandBuilder()
@@ -90,8 +91,10 @@ export default {
                         .setMinValue(1)
                         .setRequired(true))),
 
-    async execute(interaction, pb) {
+    async execute(interaction) {
         const subcommand = interaction.options.getSubcommand();
+
+        const pb = await getPb();
 
         switch (subcommand) {
             case 'setup':

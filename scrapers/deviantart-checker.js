@@ -1,12 +1,15 @@
 import { EmbedBuilder } from 'discord.js';
 import { getLatestDeviation, getRecentDeviations } from './deviantart-scraper.js';
+import {getPb} from "../utils/pocketbase.js";
 
 // Map to track feed check intervals by ID
 const feedCheckIntervals = new Map();
 
-export async function startDeviantArtCheckers(client, pb) {
+export async function startDeviantArtCheckers(client) {
     try {
         console.log('Setting up DeviantArt feed checkers...');
+
+        const pb = await getPb();
 
         // Clear any existing intervals
         for (const interval of feedCheckIntervals.values()) {

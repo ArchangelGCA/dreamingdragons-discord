@@ -14,6 +14,15 @@ let initializationPromise = null;
  */
 async function initializePocketBaseSingleton() {
     if (pbInstance) {
+
+        // Check if pbInstance is still authenticated
+        if (!pbInstance.authStore.isValid || !pbInstance.authStore.isSuperuser) {
+            console.log('PocketBase instance is not authenticated. Reinitializing...');
+            pbInstance = null;
+            initializationPromise = null;
+            return await initializePocketBaseSingleton();
+        }
+
         return pbInstance;
     }
 
