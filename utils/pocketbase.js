@@ -39,7 +39,11 @@ async function initializePocketBaseSingleton() {
         try {
             await pb.collection('_superusers').authWithPassword(
                 process.env.POCKETBASE_ADMIN_EMAIL,
-                process.env.POCKETBASE_ADMIN_PASSWORD
+                process.env.POCKETBASE_ADMIN_PASSWORD,
+                {
+                    autoRefreshThreshold: 30 * 60, // 30 minutes
+                    cache: "no-store"
+                }
             );
             console.log('PocketBase admin authenticated successfully.');
 
