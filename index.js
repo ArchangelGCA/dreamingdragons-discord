@@ -1,5 +1,4 @@
 import {Client, GatewayIntentBits, Collection, Events, ActivityType} from 'discord.js';
-import {startDeviantArtCheckers} from './scrapers/deviantart-checker.js';
 import {config} from 'dotenv';
 import {getPb} from './utils/pocketbase.js';
 import fs from 'node:fs';
@@ -13,6 +12,19 @@ config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Validate required environment variables before attempting to start
+const REQUIRED_ENV_VARS = ['DISCORD_BOT_TOKEN'];
+const missingVars = REQUIRED_ENV_VARS.filter(v => !process.env[v]);
+if (missingVars.length > 0) {
+    console.error(`FATAL: Missing required environment variables: ${missingVars.join(', ')}`);
+    console.error('Please check your .env file and ensure all required variables are set.');
+    setTimeout(() => process.exit(1), 5000);
+}
+
+// Anti-Login loop flags
+let isShuttingDown = false;
+let loginAttempted = false;
 
 // Initialize Discord client with required intents
 const client = new Client({
@@ -369,8 +381,26 @@ async function handleMessageCreate(message) {
 
 // Main execution flow
 async function main() {
+    // Prevent multiple login attempts
+    if (loginAttempted) {
+        console.error('Login already attempted. Preventing duplicate login.');
+        return;
+    }
+    loginAttempted = true;
+
     try {
         await loadCommands();
+
+        // Validate PocketBase connection before attempting Discord login
+        console.log('Validating PocketBase connection...');
+        const pb = await getPb();
+        if (!pb) {
+            console.error('FATAL: Could not establish PocketBase connection.');
+            console.error('Bot will exit in 30 seconds to prevent rate limiting...');
+            setTimeout(() => process.exit(1), 30000);
+            return;
+        }
+        console.log('PocketBase connection validated.');
 
         client.once(Events.ClientReady, async c => {
             console.log(`Ready! Logged in as ${c.user.tag}`);
@@ -379,12 +409,20 @@ async function main() {
 
                 setupPresenceRotation();
                 await loadReactionRoleMessages(client);
-                await startDeviantArtCheckers(client);
 
             } catch (error) {
-                console.error("FATAL: Failed to initialize PocketBase during ClientReady.", error);
-                process.exit(1);
+                console.error("Error during post-login initialization:", error);
+                // Don't exit - the bot is logged in and can still function partially
             }
+        });
+
+        // Handle Discord errors gracefully
+        client.on('error', error => {
+            console.error('Discord client error:', error);
+        });
+
+        client.on('warn', warning => {
+            console.warn('Discord client warning:', warning);
         });
 
         client.on(Events.InteractionCreate, interaction => {
@@ -395,28 +433,52 @@ async function main() {
         client.on(Events.MessageReactionRemove, (reaction, user) => handleReactionRemove(reaction, user));
         client.on(Events.MessageCreate, (message) => handleMessageCreate(message));
 
+        // Graceful shutdown handlers - register before login
+        const gracefulShutdown = (signal) => {
+            if (isShuttingDown) return;
+            isShuttingDown = true;
+            console.log(`${signal} received. Shutting down bot...`);
+            client.destroy();
+            console.log('Bot shut down.');
+            process.exit(0);
+        };
+
+        process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+        process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+
+        // Handle uncaught exceptions to prevent crash loops
+        process.on('uncaughtException', (error) => {
+            console.error('Uncaught Exception:', error);
+            // Don't exit immediately - log and continue if possible
+        });
+
+        process.on('unhandledRejection', (reason, promise) => {
+            console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+            // Don't exit immediately - log and continue if possible
+        });
+
         // Login to Discord
         console.log('Logging into Discord...');
         await client.login(process.env.DISCORD_BOT_TOKEN);
         console.log('Login successful!');
 
-        // Graceful shutdown
-        process.on('SIGINT', () => {
-            console.log('SIGINT received. Shutting down bot...');
-            client.destroy();
-            console.log('Bot shut down.');
-            process.exit(0);
-        });
-        process.on('SIGTERM', () => {
-            console.log('SIGTERM received. Shutting down bot...');
-            client.destroy();
-            console.log('Bot shut down.');
-            process.exit(0);
-        });
-
     } catch (error) {
         console.error('Fatal error during bot setup:', error);
-        process.exit(1);
+        
+        // Check if this is a rate limit error
+        if (error.message && error.message.includes('sessions remaining')) {
+            const resetMatch = error.message.match(/resets at ([^)]+)/);
+            if (resetMatch) {
+                console.error(`\n⚠️  RATE LIMITED: You have exceeded Discord's session limit.`);
+                console.error(`   Sessions will reset at: ${resetMatch[1]}`);
+                console.error(`   Please wait until then before trying again.`);
+                console.error(`   The bot will NOT restart automatically to prevent further rate limiting.\n`);
+            }
+        }
+        
+        // Exit with a delay to prevent rapid restart loops (e.g., with nodemon)
+        console.error('Bot will exit in 60 seconds to prevent rate limiting...');
+        setTimeout(() => process.exit(1), 60000);
     }
 }
 

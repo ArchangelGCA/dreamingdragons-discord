@@ -3,14 +3,9 @@
 ![Discord.js](https://img.shields.io/badge/discord.js-v14.18.0-blue.svg)
 ![Status](https://img.shields.io/badge/status-active-success.svg)
 
-A feature-rich Discord bot designed for communities with a focus on DeviantArt integration, role management, and user engagement.
+A feature-rich Discord bot designed for communities with a focus on role management and user engagement.
 
 ## ✨ Features
-
-### 🎨 DeviantArt Integration
-- Monitor DeviantArt galleries and automatically post new artwork
-- Configure update intervals and notification channels
-- Test feeds before setting them up
 
 ### 🏷️ Reaction Roles
 - Create custom role assignment messages with emoji reactions
@@ -33,17 +28,6 @@ A feature-rich Discord bot designed for communities with a focus on DeviantArt i
 
 ### `/ping`
 Simple ping command to check if the bot is responsive.
-
-### `/deviantart`
-Manage DeviantArt feed monitoring.
-
-| Subcommand | Description |
-|------------|-------------|
-| `add` | Add a new DeviantArt feed to monitor |
-| `list` | List all DeviantArt feeds being monitored |
-| `edit` | Edit an existing DeviantArt feed |
-| `remove` | Remove a DeviantArt feed |
-| `test` | Test a feed by fetching the latest deviation |
 
 ### `/reactionrole`
 Manage reaction-based role assignments.
@@ -114,13 +98,6 @@ POCKETBASE_ADMIN_PASSWORD=admin_password
 ## ⚙️ PocketBase Configuration
 
 The bot requires the following PocketBase collections:
-- `deviantart_feeds` - Stores DeviantArt feed configurations
-    - `guild_id` (text)
-    - `channel_id` (text)
-    - `url` (text/URL)
-    - `interval` (number)
-    - `last_check` (datetime)
-    - `known_deviations` (JSON)
 - `reaction_roles` - Stores reaction role configurations
     - `guild_id` (text)
     - `channel_id` (text)
@@ -153,7 +130,6 @@ The bot requires the following PocketBase collections:
 Built with:
 - [discord.js](https://discord.js.org/) - Discord API library
 - [PocketBase](https://pocketbase.io/) - Backend database
-- [Cheerio](https://cheerio.js.org/) - For DeviantArt feed parsing
 
 ## 📄 License
 
