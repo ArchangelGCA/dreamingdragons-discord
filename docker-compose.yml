@@ -1,0 +1,65 @@
+# dd-bot full stack: PocketBase + Discord bot + admin dashboard (+ optional Cloudflare Tunnel).
+# Quick start:  cp .env.example .env  &&  docker compose up -d --build
+# With tunnel:  docker compose --profile tunnel up -d --build
+
+services:
+  pocketbase:
+    build:
+      context: .
+      dockerfile: pocketbase/Dockerfile
+    container_name: ddbot-pocketbase
+    restart: unless-stopped
+    environment:
+      - POCKETBASE_ADMIN_EMAIL=${POCKETBASE_ADMIN_EMAIL}
+      - POCKETBASE_ADMIN_PASSWORD=${POCKETBASE_ADMIN_PASSWORD}
+    volumes:
+      - pb_data:/pb/pb_data
+    ports:
+      - "${POCKETBASE_PORT:-8090}:8090"
+
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ddbot-bot
+    restart: unless-stopped
+    depends_on:
+      pocketbase:
+        condition: service_healthy
+    environment:
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
+      - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
+      - DISCORD_GUILD_ID=${DISCORD_GUILD_ID:-}
+      - POCKETBASE_URL=http://pocketbase:8090
+      - POCKETBASE_ADMIN_EMAIL=${POCKETBASE_ADMIN_EMAIL}
+      - POCKETBASE_ADMIN_PASSWORD=${POCKETBASE_ADMIN_PASSWORD}
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: ddbot-web
+    restart: unless-stopped
+    depends_on:
+      pocketbase:
+        condition: service_healthy
+    environment:
+      - POCKETBASE_URL=http://pocketbase:8090
+      - ORIGIN=${ORIGIN:-http://localhost:3000}
+      - PORT=3000
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: ddbot-cloudflared
+    restart: unless-stopped
+    profiles: ["tunnel"]
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+    depends_on:
+      - web
+
+volumes:
+  pb_data:

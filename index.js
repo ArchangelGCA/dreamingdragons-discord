@@ -1,4 +1,4 @@
-import {Client, GatewayIntentBits, Collection, Events, ActivityType} from 'discord.js';
+import {Client, GatewayIntentBits, Collection, Events, ActivityType, MessageFlags} from 'discord.js';
 import {config} from 'dotenv';
 import {getPb} from './utils/pocketbase.js';
 import fs from 'node:fs';
@@ -6,6 +6,7 @@ import path from 'node:path';
 import {fileURLToPath, pathToFileURL} from 'node:url';
 import {loadReactionRoleMessages} from "./init/init.js";
 import {addXpToUser} from './utils/leveling.js';
+import {BUTTON_ID_PREFIX} from './utils/reactionroles.js';
 
 // Load environment variables
 config();
@@ -115,7 +116,7 @@ async function handleCommandInteraction(interaction) {
         console.error("PocketBase instance unavailable for command interaction.");
         if (!interaction.replied && !interaction.deferred) {
             try {
-                await interaction.reply({content: 'Bot is initializing, please wait.', ephemeral: true});
+                await interaction.reply({content: 'Bot is initializing, please wait.', flags: MessageFlags.Ephemeral});
             } catch {
             }
         }
@@ -127,7 +128,7 @@ async function handleCommandInteraction(interaction) {
     if (!command) {
         console.error(`No command matching ${interaction.commandName} was found.`);
         try {
-            await interaction.reply({content: `Command not found: ${interaction.commandName}`, ephemeral: true});
+            await interaction.reply({content: `Command not found: ${interaction.commandName}`, flags: MessageFlags.Ephemeral});
         } catch (e) {
             console.error("Error replying to unknown command interaction:", e);
         }
@@ -138,7 +139,7 @@ async function handleCommandInteraction(interaction) {
         await command.execute(interaction);
     } catch (error) {
         console.error(`Error executing command ${interaction.commandName}:`, error);
-        const response = {content: 'There was an error executing this command!', ephemeral: true};
+        const response = {content: 'There was an error executing this command!', flags: MessageFlags.Ephemeral};
         try {
             if (interaction.replied || interaction.deferred) {
                 await interaction.followUp(response);
@@ -330,23 +331,19 @@ async function handleAutocomplete(interaction) {
                 };
             });
             await interaction.respond(choices);
-        } else if (commandName === 'deviantart' && focusedOption.name === 'feed_id') {
-            const filter = pb.filter(`guild_id = {:guild_id} && url ~ {:query}`, {
-                guild_id: interaction.guildId,
-                query: focusedOption.value
-            });
-            const records = await pb.collection('deviantart_feeds').getList(1, 25, {
-                filter,
-                sort: '-created'
-            });
-
-            const choices = records.items.map(feed => {
-                const urlSnippet = feed.url.length > 60 ? feed.url.substring(0, 57) + '...' : feed.url;
-                return {
-                    name: `Feed: ${urlSnippet}`,
-                    value: feed.id
-                };
-            });
+        } else if (commandName === 'reactionrole' && (focusedOption.name === 'emoji' || focusedOption.name === 'current_emoji')) {
+            // Suggest emojis already configured on the selected message.
+            const messageId = interaction.options.getString('message_id');
+            if (!messageId) {
+                await interaction.respond([]);
+                return;
+            }
+            const filter = pb.filter(`guild_id = {:guild_id} && message_id = {:message_id} && emoji_identifier != ""`,
+                {guild_id: interaction.guildId, message_id: messageId});
+            const records = await pb.collection('reaction_roles').getList(1, 25, {filter, sort: 'created'});
+            const choices = records.items
+                .filter(r => r.emoji_identifier)
+                .map(r => ({name: `${r.emoji_identifier}`.slice(0, 100), value: r.emoji_identifier}));
             await interaction.respond(choices);
         }
     } catch (error) {
@@ -357,6 +354,58 @@ async function handleAutocomplete(interaction) {
         try {
             await interaction.respond([]);
         } catch {}
+    }
+}
+
+/**
+ * Handle reaction-role button clicks (customId: rr:<recordId>)
+ */
+async function handleButtonInteraction(interaction) {
+    if (!interaction.customId?.startsWith(`${BUTTON_ID_PREFIX}:`)) return;
+
+    const pb = await getPb();
+    if (!pb || !interaction.guild) {
+        await interaction.reply({content: 'Bot is initializing, please try again shortly.', flags: MessageFlags.Ephemeral}).catch(() => {});
+        return;
+    }
+
+    const recordId = interaction.customId.slice(BUTTON_ID_PREFIX.length + 1);
+
+    try {
+        let record;
+        try {
+            record = await pb.collection('reaction_roles').getOne(recordId);
+        } catch {
+            await interaction.reply({content: 'This role button is no longer available.', flags: MessageFlags.Ephemeral}).catch(() => {});
+            return;
+        }
+
+        if (record.guild_id !== interaction.guildId) return;
+
+        const role = interaction.guild.roles.cache.get(record.role_id)
+            || await interaction.guild.roles.fetch(record.role_id).catch(() => null);
+        if (!role) {
+            await interaction.reply({content: 'That role no longer exists. Please notify an admin.', flags: MessageFlags.Ephemeral});
+            return;
+        }
+
+        const member = await interaction.guild.members.fetch(interaction.user.id);
+
+        if (member.roles.cache.has(role.id)) {
+            await member.roles.remove(role.id);
+            await interaction.reply({content: `❌ Removed the **${role.name}** role.`, flags: MessageFlags.Ephemeral});
+        } else {
+            await member.roles.add(role.id);
+            await interaction.reply({content: `✅ You now have the **${role.name}** role!`, flags: MessageFlags.Ephemeral});
+        }
+    } catch (error) {
+        console.error('Error handling reaction role button:', error);
+        const msg = error.code === 50013
+            ? "I'm missing permissions to manage that role (check my role hierarchy)."
+            : 'Something went wrong while updating your roles.';
+        if (!interaction.replied && !interaction.deferred) {
+            await interaction.reply({content: msg, flags: MessageFlags.Ephemeral}).catch(() => {});
+        }
     }
 }
 
@@ -428,6 +477,7 @@ async function main() {
         client.on(Events.InteractionCreate, interaction => {
             if (interaction.isChatInputCommand()) handleCommandInteraction(interaction);
             else if (interaction.isAutocomplete()) handleAutocomplete(interaction);
+            else if (interaction.isButton()) handleButtonInteraction(interaction);
         });
         client.on(Events.MessageReactionAdd, (reaction, user) => handleReactionAdd(reaction, user));
         client.on(Events.MessageReactionRemove, (reaction, user) => handleReactionRemove(reaction, user));

@@ -1,4 +1,4 @@
-import {SlashCommandBuilder, PermissionsBitField, EmbedBuilder} from 'discord.js';
+import {SlashCommandBuilder, PermissionsBitField, EmbedBuilder, MessageFlags} from 'discord.js';
 import {
     calculateLevelFromXp,
     calculateXpForLevel,
@@ -125,13 +125,13 @@ export default {
                 await handleSetLevel(interaction, pb);
                 break;
             default:
-                await interaction.reply({content: 'Unknown subcommand', ephemeral: true});
+                await interaction.reply({content: 'Unknown subcommand', flags: MessageFlags.Ephemeral});
         }
     }
 };
 
 async function handleSetup(interaction, pb) {
-    await interaction.deferReply({ephemeral: true});
+    await interaction.deferReply({flags: MessageFlags.Ephemeral});
 
     const notificationChannel = interaction.options.getChannel('notification_channel');
     const xpPerMessage = interaction.options.getInteger('xp_per_message') || 20;
@@ -175,7 +175,7 @@ async function handleSetup(interaction, pb) {
 }
 
 async function handleSetReward(interaction, pb) {
-    await interaction.deferReply({ephemeral: true});
+    await interaction.deferReply({flags: MessageFlags.Ephemeral});
 
     const level = interaction.options.getInteger('level');
     const role = interaction.options.getRole('role');
@@ -214,7 +214,7 @@ async function handleSetReward(interaction, pb) {
 }
 
 async function handleRemoveReward(interaction, pb) {
-    await interaction.deferReply({ephemeral: true});
+    await interaction.deferReply({flags: MessageFlags.Ephemeral});
 
     const role = interaction.options.getRole('role');
 
@@ -240,7 +240,7 @@ async function handleRemoveReward(interaction, pb) {
 }
 
 async function handleResetUser(interaction, pb) {
-    await interaction.deferReply({ephemeral: true});
+    await interaction.deferReply({flags: MessageFlags.Ephemeral});
 
     const user = interaction.options.getUser('user');
 
@@ -266,7 +266,7 @@ async function handleResetUser(interaction, pb) {
 }
 
 async function handleToggle(interaction, pb, enable) {
-    await interaction.deferReply({ephemeral: true});
+    await interaction.deferReply({flags: MessageFlags.Ephemeral});
 
     try {
         // Check if settings exist
@@ -293,7 +293,7 @@ async function handleToggle(interaction, pb, enable) {
 }
 
 async function handleSync(interaction, pb) {
-    await interaction.deferReply({ephemeral: true});
+    await interaction.deferReply({flags: MessageFlags.Ephemeral});
 
     try {
         // Get all users with level data
@@ -331,7 +331,7 @@ async function handleSync(interaction, pb) {
 }
 
 async function handleMigrateRoles(interaction, pb) {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     try {
         // Get all level rewards to know which roles correspond to which levels
@@ -439,7 +439,7 @@ async function handleMigrateRoles(interaction, pb) {
 }
 
 async function handleSetLevel(interaction, pb) {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     const targetUser = interaction.options.getUser('user');
     const newLevel = interaction.options.getInteger('level');

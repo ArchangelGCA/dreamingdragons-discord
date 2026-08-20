@@ -40,20 +40,23 @@ const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_BOT_TOKEN)
 // Deploy commands
 (async () => {
     try {
-        console.log(`Started refreshing ${commands.length} application (/) commands.`);
+        const clientId = process.env.DISCORD_CLIENT_ID;
+        const guildId = process.env.DISCORD_GUILD_ID;
 
-        // The put method is used to fully refresh all commands in the guild with the current set
-        // applicationGuildCommands ONLY for development/testing in a specific guild
-        const data = await rest.put(
-            Routes.applicationGuildCommands(process.env.DISCORD_CLIENT_ID, process.env.DISCORD_GUILD_ID),
-            { body: commands },
-        );
+        if (!clientId) {
+            console.error('Error: DISCORD_CLIENT_ID is not set. Cannot deploy commands.');
+            process.exit(1);
+        }
 
-        // applicationCommands for global deployment (can take up to an hour)
-        // const data = await rest.put(
-        //  Routes.applicationCommands(process.env.DISCORD_CLIENT_ID),
-        //  { body: commands },
-        // );
+        // Guild commands update instantly (ideal for a single server / development).
+        // With no DISCORD_GUILD_ID, deploy globally (may take up to ~1 hour to propagate).
+        const route = guildId
+            ? Routes.applicationGuildCommands(clientId, guildId)
+            : Routes.applicationCommands(clientId);
+
+        console.log(`Started refreshing ${commands.length} application (/) commands (${guildId ? `guild ${guildId}` : 'global'}).`);
+
+        const data = await rest.put(route, { body: commands });
 
         console.log(`Successfully reloaded ${data.length} application (/) commands.`);
         process.exit(0);

@@ -6,39 +6,29 @@ config();
 
 let pbInstance = null;
 let initializationPromise = null;
-let initializationFailed = false;
+
+// Retry tuning (overridable via env). During container startup PocketBase may not
+// be reachable yet, so we retry with backoff instead of permanently giving up.
+const MAX_RETRIES = parseInt(process.env.POCKETBASE_MAX_RETRIES || '15', 10);
+const BASE_RETRY_DELAY_MS = parseInt(process.env.POCKETBASE_RETRY_DELAY_MS || '2000', 10);
+const MAX_RETRY_DELAY_MS = 30_000;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Initializes and authenticates the PocketBase instance if it hasn't been already.
- * Handles the singleton pattern with retry logic.
- * @returns {Promise<PocketBase|null>} A promise that resolves with the initialized PocketBase instance or null on failure.
+ * Creates a fresh authenticated PocketBase client, retrying with exponential
+ * backoff until it succeeds or the retry budget is exhausted.
+ * @returns {Promise<PocketBase|null>}
  */
-async function initializePocketBaseSingleton() {
-    // If initialization previously failed, return null to prevent repeated crashes
-    if (initializationFailed) {
+async function connectWithRetry() {
+    const url = process.env.POCKETBASE_URL;
+    if (!url) {
+        console.error('CRITICAL: POCKETBASE_URL is not set.');
         return null;
     }
 
-    if (pbInstance) {
-        // Check if pbInstance is still authenticated
-        if (!pbInstance.authStore.isValid || !pbInstance.authStore.isSuperuser) {
-            console.log('PocketBase instance is not authenticated. Reinitializing...');
-            pbInstance = null;
-            initializationPromise = null;
-            return await initializePocketBaseSingleton();
-        }
-
-        return pbInstance;
-    }
-
-    if (initializationPromise) {
-        return await initializationPromise;
-    }
-
-    initializationPromise = (async () => {
-        console.log('Initializing PocketBase connection...');
-        const pb = new PocketBase(process.env.POCKETBASE_URL);
-
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        const pb = new PocketBase(url);
         pb.autoCancellation(false);
 
         try {
@@ -47,44 +37,80 @@ async function initializePocketBaseSingleton() {
                 process.env.POCKETBASE_ADMIN_PASSWORD,
                 {
                     autoRefreshThreshold: 30 * 60, // 30 minutes
-                    cache: "no-store"
+                    cache: 'no-store'
                 }
             );
-            console.log('PocketBase admin authenticated successfully.');
 
-            pb.authStore.onChange((token, model) => {
-                console.log('[PocketBase Auth] Store changed. Token:', token ? 'present' : 'absent', 'Model:', model?.email || 'none');
-            }, true);
+            console.log(`PocketBase admin authenticated successfully (attempt ${attempt}).`);
 
-            pbInstance = pb;
-            return pbInstance;
+            pb.authStore.onChange((token, record) => {
+                console.log(
+                    '[PocketBase Auth] Store changed. Token:',
+                    token ? 'present' : 'absent',
+                    'Record:',
+                    record?.email || 'none'
+                );
+            });
+
+            return pb;
         } catch (error) {
-            console.error('CRITICAL: PocketBase admin authentication failed during initialization:', error);
-            initializationPromise = null;
-            initializationFailed = true;
-            // Don't call process.exit() - let the caller handle the failure gracefully
-            return null;
+            const delay = Math.min(BASE_RETRY_DELAY_MS * 2 ** (attempt - 1), MAX_RETRY_DELAY_MS);
+            const reason = error?.originalError?.message || error?.message || 'unknown error';
+            console.warn(
+                `PocketBase auth attempt ${attempt}/${MAX_RETRIES} failed (${reason}). Retrying in ${delay}ms...`
+            );
+            if (attempt < MAX_RETRIES) {
+                await sleep(delay);
+            }
         }
+    }
+
+    console.error('CRITICAL: Exhausted PocketBase connection retries.');
+    return null;
+}
+
+/**
+ * Initializes and authenticates the PocketBase singleton if needed.
+ * Re-authenticates automatically if the auth store becomes invalid.
+ * @returns {Promise<PocketBase|null>}
+ */
+async function initializePocketBaseSingleton() {
+    if (pbInstance) {
+        if (pbInstance.authStore.isValid && pbInstance.authStore.isSuperuser) {
+            return pbInstance;
+        }
+        console.log('PocketBase instance is no longer authenticated. Reinitializing...');
+        pbInstance = null;
+        initializationPromise = null;
+    }
+
+    if (initializationPromise) {
+        return await initializationPromise;
+    }
+
+    initializationPromise = (async () => {
+        console.log('Initializing PocketBase connection...');
+        const pb = await connectWithRetry();
+        pbInstance = pb;
+        initializationPromise = null; // allow future retries if this returned null
+        return pb;
     })();
 
     return await initializationPromise;
 }
 
 /**
- * Gets the singleton PocketBase instance.
- * Ensures it's initialized before returning.
- * @returns {Promise<PocketBase|null>} The initialized PocketBase client instance or null if initialization failed.
+ * Gets the singleton PocketBase instance, initializing it if necessary.
+ * @returns {Promise<PocketBase|null>}
  */
 export async function getPb() {
     return await initializePocketBaseSingleton();
 }
 
 /**
- * Resets the initialization state to allow retry.
- * Call this before attempting to reconnect after a failure.
+ * Resets the singleton so the next getPb() reconnects from scratch.
  */
 export function resetPbInitialization() {
-    initializationFailed = false;
     initializationPromise = null;
     pbInstance = null;
 }

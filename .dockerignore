@@ -1,0 +1,17 @@
+# Keep build contexts small. NOTE: pb_migrations/ and pocketbase/ are intentionally
+# NOT ignored — the PocketBase image build (context = repo root) needs them.
+node_modules
+**/node_modules
+web
+pb_data
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+*.log
+npm-debug.log*
+.idea
+.vscode
+*.md
+plans

@@ -13,12 +13,15 @@
   "author": "",
   "license": "MIT",
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
   "dependencies": {
-    "discord.js": "^14.25.1",
-    "dotenv": "^17.2.3",
-    "pocketbase": "^0.26.3"
+    "discord.js": "^14.27.0",
+    "dotenv": "^17.4.2",
+    "pocketbase": "^0.28.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.11"
+    "nodemon": "^3.1.14"
   }
 }

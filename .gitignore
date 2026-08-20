@@ -5,6 +5,11 @@ node_modules/
 
 # Environment variables
 .env
+.env.*
+!.env.example
+
+# PocketBase local data (when running outside Docker)
+pb_data/
 
 # Log files (if any)
 *.log
