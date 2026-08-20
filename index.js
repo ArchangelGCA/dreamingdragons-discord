@@ -7,6 +7,7 @@ import {fileURLToPath, pathToFileURL} from 'node:url';
 import {loadReactionRoleMessages} from "./init/init.js";
 import {addXpToUser} from './utils/leveling.js';
 import {BUTTON_ID_PREFIX} from './utils/reactionroles.js';
+import {startApiServer} from './api/server.js';
 
 // Load environment variables
 config();
@@ -26,6 +27,7 @@ if (missingVars.length > 0) {
 // Anti-Login loop flags
 let isShuttingDown = false;
 let loginAttempted = false;
+let apiServer = null;
 
 // Initialize Discord client with required intents
 const client = new Client({
@@ -451,6 +453,10 @@ async function main() {
         }
         console.log('PocketBase connection validated.');
 
+        // Start the internal API used by the admin dashboard (safe to start before
+        // login — guild-scoped routes report 503 until the client is ready).
+        apiServer = startApiServer(client);
+
         client.once(Events.ClientReady, async c => {
             console.log(`Ready! Logged in as ${c.user.tag}`);
             try {
@@ -488,6 +494,7 @@ async function main() {
             if (isShuttingDown) return;
             isShuttingDown = true;
             console.log(`${signal} received. Shutting down bot...`);
+            if (apiServer) apiServer.close();
             client.destroy();
             console.log('Bot shut down.');
             process.exit(0);

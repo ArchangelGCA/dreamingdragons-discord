@@ -4,7 +4,7 @@
   "description": "The Official Discord Bot of DreamingDragons",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --test",
     "deploy": "node deploy-commands.js",
     "dev": "nodemon --delay 5 index.js",
     "start": "node deploy-commands.js && node index.js"

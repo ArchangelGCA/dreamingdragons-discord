@@ -1,10 +1,11 @@
 import {SlashCommandBuilder, PermissionsBitField, EmbedBuilder, MessageFlags} from 'discord.js';
+import {invalidateLevelSettingsCache} from '../../utils/leveling.js';
 import {
-    calculateLevelFromXp,
-    calculateXpForLevel,
-    checkAndAwardRoles,
-    invalidateLevelSettingsCache
-} from '../../utils/leveling.js';
+    recoverGuildXp,
+    syncGuildRoles,
+    setUserLevel,
+    resetUser
+} from '../../utils/levelservice.js';
 import {getPb} from "../../utils/pocketbase.js";
 
 export default {
@@ -245,20 +246,11 @@ async function handleResetUser(interaction, pb) {
     const user = interaction.options.getUser('user');
 
     try {
-        // Find user data
-        const filter = pb.filter(`guild_id = {:guild_id} && user_id = {:user_id}`,
-            {guild_id: interaction.guildId, user_id: user.id});
-        const userData = await pb.collection('user_levels').getList(1, 1, {filter});
-
-        if (userData.totalItems === 0) {
+        const { deleted } = await resetUser(pb, interaction.guildId, user.id);
+        if (!deleted) {
             return interaction.editReply(`❌ ${user.username} doesn't have any level data to reset.`);
         }
-
-        // Delete the user data
-        await pb.collection('user_levels').delete(userData.items[0].id);
-
         await interaction.editReply(`✅ Level data reset for ${user.username}`);
-
     } catch (error) {
         console.error('Error resetting user level:', error);
         await interaction.editReply('❌ Failed to reset user level data.');
@@ -296,28 +288,10 @@ async function handleSync(interaction, pb) {
     await interaction.deferReply({flags: MessageFlags.Ephemeral});
 
     try {
-        // Get all users with level data
-        const userFilter = pb.filter(`guild_id = {:guild_id}`, {guild_id: interaction.guildId});
-        const users = await pb.collection('user_levels').getFullList({filter: userFilter});
+        const { total, success, failed } = await syncGuildRoles(pb, interaction.client, interaction.guildId);
 
-        if (users.length === 0) {
+        if (total === 0) {
             return interaction.editReply('❌ No level data found for any users.');
-        }
-
-        await interaction.editReply(`⏳ Syncing roles for ${users.length} users. This may take some time...`);
-
-        let success = 0;
-        let failed = 0;
-
-        // Process each user
-        for (const user of users) {
-            try {
-                const level = calculateLevelFromXp(user.xp);
-                await checkAndAwardRoles(user.user_id, interaction.guildId, level, interaction.client, pb);
-                success++;
-            } catch {
-                failed++;
-            }
         }
 
         await interaction.editReply(`✅ Role sync complete:
@@ -334,102 +308,20 @@ async function handleMigrateRoles(interaction, pb) {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     try {
-        // Get all level rewards to know which roles correspond to which levels
-        const rewardFilter = pb.filter(`guild_id = {:guild_id}`, { guild_id: interaction.guildId });
-        const rewards = await pb.collection('level_rewards').getFullList({
-            filter: rewardFilter,
-            sort: '+level'
-        });
+        // Shared logic with the dashboard "Recover XP" action.
+        const { changes, skipped, updated, errors } = await recoverGuildXp(
+            pb, interaction.client, interaction.guildId, { dryRun: false }
+        );
 
-        if (rewards.length === 0) {
-            return interaction.editReply('❌ No level rewards defined. Please set up level rewards first.');
-        }
-
-        // Create a map of role IDs to their corresponding levels
-        const roleLevels = {};
-        for (const reward of rewards) {
-            roleLevels[reward.role_id] = reward.level;
-        }
-
-        await interaction.editReply('⏳ Migrating roles to XP. Scanning all members...');
-
-        // Get guild members
-        const members = await interaction.guild.members.fetch();
-        let updated = 0;
-        let skipped = 0;
-        let errors = 0;
-
-        for (const [memberId, member] of members) {
-            // Skip bots
-            if (member.user.bot) {
-                skipped++;
-                continue;
-            }
-
-            try {
-                // Find the highest level role the member has
-                let highestLevel = 0;
-                for (const [roleId, role] of member.roles.cache) {
-                    if (roleLevels[roleId] && roleLevels[roleId] > highestLevel) {
-                        highestLevel = roleLevels[roleId];
-                    }
-                }
-
-                if (highestLevel === 0) {
-                    // No level roles found for this user
-                    skipped++;
-                    continue;
-                }
-
-                // Check if user already has level data
-                const userFilter = pb.filter(`guild_id = {:guild_id} && user_id = {:user_id}`,
-                    { guild_id: interaction.guildId, user_id: memberId });
-                const userData = await pb.collection('user_levels').getList(1, 1, { filter: userFilter });
-
-                // Calculate minimum XP needed for this level
-                let totalRequiredXp = 0;
-                for (let i = 1; i <= highestLevel; i++) {
-                    totalRequiredXp += calculateXpForLevel(i);
-                }
-
-                // Add a little extra to prevent edge cases
-                totalRequiredXp += 10;
-
-                if (userData.totalItems > 0) {
-                    const existingXp = userData.items[0].xp;
-                    const existingLevel = calculateLevelFromXp(existingXp);
-
-                    // Only update if their actual level is lower than the role level
-                    if (existingLevel < highestLevel) {
-                        await pb.collection('user_levels').update(userData.items[0].id, {
-                            xp: totalRequiredXp,
-                            level: highestLevel,
-                            last_message_time: new Date().toISOString()
-                        });
-                        updated++;
-                    } else {
-                        skipped++;
-                    }
-                } else {
-                    // Create new record with appropriate XP
-                    await pb.collection('user_levels').create({
-                        guild_id: interaction.guildId,
-                        user_id: memberId,
-                        xp: totalRequiredXp,
-                        level: highestLevel,
-                        last_message_time: new Date().toISOString()
-                    });
-                    updated++;
-                }
-            } catch (error) {
-                console.error(`Error processing user ${memberId}:`, error);
-                errors++;
-            }
+        if (changes.length === 0 && updated === 0) {
+            return interaction.editReply(
+                '❌ No members needed XP recovery. Ensure level rewards are configured and members hold those roles.'
+            );
         }
 
         await interaction.editReply(`✅ Role migration complete:
 • Users updated: ${updated}
-• Users skipped: ${skipped} (bots or no level roles)
+• Users skipped: ${skipped} (bots, no level roles, or already at/above the role level)
 • Errors: ${errors}`);
 
     } catch (error) {
@@ -445,43 +337,8 @@ async function handleSetLevel(interaction, pb) {
     const newLevel = interaction.options.getInteger('level');
 
     try {
-        // Calculate XP required for this level
-        let totalXpRequired = 0;
-        for (let i = 1; i <= newLevel; i++) {
-            totalXpRequired += calculateXpForLevel(i);
-        }
-
-        // Ensure the user has enough XP to be solidly at this level (add a small buffer)
-        totalXpRequired += 10;
-
-        // Check if user has level data
-        const userFilter = pb.filter(`guild_id = {:guild_id} && user_id = {:user_id}`,
-            { guild_id: interaction.guildId, user_id: targetUser.id });
-        const userData = await pb.collection('user_levels').getList(1, 1, { filter: userFilter });
-
-        if (userData.totalItems > 0) {
-            // Update existing record
-            await pb.collection('user_levels').update(userData.items[0].id, {
-                xp: totalXpRequired,
-                level: newLevel,
-                last_message_time: new Date().toISOString()
-            });
-        } else {
-            // Create new record
-            await pb.collection('user_levels').create({
-                guild_id: interaction.guildId,
-                user_id: targetUser.id,
-                xp: totalXpRequired,
-                level: newLevel,
-                last_message_time: new Date().toISOString()
-            });
-        }
-
-        // Award appropriate roles
-        await checkAndAwardRoles(targetUser.id, interaction.guildId, newLevel, interaction.client, pb);
-
-        await interaction.editReply(`✅ ${targetUser.username}'s level has been set to ${newLevel} with ${totalXpRequired} XP.`);
-
+        const { xp } = await setUserLevel(pb, interaction.client, interaction.guildId, targetUser.id, newLevel);
+        await interaction.editReply(`✅ ${targetUser.username}'s level has been set to ${newLevel} with ${xp} XP.`);
     } catch (error) {
         console.error('Error setting user level:', error);
         await interaction.editReply('❌ Failed to set user level.');

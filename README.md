@@ -35,7 +35,16 @@ Everything is **multi-arch** — it runs on `linux/amd64` and `linux/arm64` (e.g
 
 ### 🛠️ Admin dashboard
 - Private (PocketBase superuser login — no public sign-up).
-- Overview stats, edit leveling settings & rewards, browse/prune reaction roles, view & edit member XP/levels.
+- **Multi-server aware:** a guild switcher scopes every page to the selected server.
+- **Live Discord data:** roles, channels and members are resolved to real **names & avatars** (not raw IDs) via a secure, internal-only bridge to the bot.
+- **Full management, not just viewing:**
+  - **Leveling** — edit settings (XP/message, cooldown, notification channel, enable/disable) and full **reward-role CRUD** with searchable role pickers.
+  - **Users** — search any member, edit XP / set level / reset; changes route through the bot so **reward roles re-sync** automatically.
+  - **Reaction roles** — an intuitive builder: pick a channel, compose the embed, add role rows (button *or* emoji mode) and it **posts to Discord** for you; edit/add/remove entries and **delete cleans up the Discord message too** (no more stale buttons).
+- **XP Recovery** — lost your DB but members still hold their reward roles? Preview (dry-run) then apply a recovery that grants each member **at least the XP tied to the highest reward role they hold**. Also available as `/leveladmin migrateroles`.
+- **Graceful degradation:** if the bot is offline the dashboard still runs — it shows a banner, falls back to raw IDs, and DB-only edits keep working.
+
+> The dashboard never holds the Discord token. It talks to PocketBase directly and reaches the bot only **server-side** over an internal Docker network (`http://bot:8787`, Bearer-authenticated, no host port). See `INTERNAL_API_SECRET` below.
 
 ## 🚀 Quick start (Docker Compose)
 
@@ -49,7 +58,8 @@ git clone <your-repo-url> dd-bot && cd dd-bot
 
 # 2. Create your environment file
 cp .env.example .env
-#    ...then edit .env (bot token, client ID, admin email/password, ORIGIN)
+#    ...then edit .env (bot token, client ID, admin email/password, ORIGIN,
+#    and INTERNAL_API_SECRET — generate one with:  openssl rand -hex 32)
 
 # 3. Launch the whole stack
 docker compose up -d --build
@@ -80,10 +90,14 @@ All configuration is via `.env` (see `.env.example` for the annotated template):
 | `POCKETBASE_ADMIN_EMAIL` | ✅ | Superuser email (auto-created). |
 | `POCKETBASE_ADMIN_PASSWORD` | ✅ | Superuser password (**min 8 chars**, auto-created). |
 | `ORIGIN` | ✅ | Public URL the dashboard is opened from (e.g. `http://localhost:3000`). Must match or form actions fail. |
+| `INTERNAL_API_SECRET` | ▲ | Shared secret for the dashboard↔bot bridge (Discord names + live actions). **Blank = bridge disabled**, dashboard degrades to DB-only/raw-IDs. Bot & web must share the same value; use `openssl rand -hex 32`. Internal network only — never exposed to a host port. |
+| `BOT_API_PORT` | — | Port for the bot's internal API on the Docker network (default `8787`; no host mapping). |
 | `POCKETBASE_PORT` | — | Host port for PocketBase (default `8090`). |
 | `WEB_PORT` | — | Host port for the dashboard (default `3000`). |
 | `POCKETBASE_URL` | — | Only for running **outside** Docker; inside compose it's `http://pocketbase:8090` automatically. |
 | `TUNNEL_TOKEN` | — | Cloudflare Tunnel token (only with `--profile tunnel`). |
+
+<sub>✅ required · ▲ required for live dashboard features (safe to leave blank for a DB-only dashboard) · — optional</sub>
 
 ## 🗄️ PocketBase (auto-provisioned)
 
@@ -140,25 +154,34 @@ Requires Node.js 22+ and a PocketBase instance (run one with the bundled image o
 ```bash
 # Bot
 npm install
-cp .env.example .env          # set POCKETBASE_URL to your PB instance
+cp .env.example .env          # set POCKETBASE_URL to your PB instance,
+                              # and INTERNAL_API_SECRET to enable the dashboard bridge
 npm run deploy                # register slash commands
-npm run dev                   # start with auto-reload (nodemon)
+npm run dev                   # start with auto-reload (nodemon); the internal API
+                              # listens on 127.0.0.1:${BOT_API_PORT:-8787}
+npm test                      # run the leveling unit tests (node --test)
 
-# Admin dashboard
+# Admin dashboard (share the SAME INTERNAL_API_SECRET as the bot; point BOT_API_URL at it)
 cd web
 npm install
-POCKETBASE_URL=http://127.0.0.1:8090 ORIGIN=http://localhost:5173 npm run dev
+POCKETBASE_URL=http://127.0.0.1:8090 ORIGIN=http://localhost:5173 \
+  INTERNAL_API_SECRET=<same-as-bot> BOT_API_URL=http://127.0.0.1:8787 npm run dev
 ```
+
+> Skip `INTERNAL_API_SECRET` / `BOT_API_URL` to develop the dashboard against PocketBase
+> alone — it runs in degraded mode (raw IDs, DB-only edits) with an "bot offline" banner.
 
 ## 🗂️ Project structure
 
 ```
 dd-bot/
-├─ index.js               # bot entrypoint (interactions, events)
+├─ index.js               # bot entrypoint (interactions, events, starts internal API)
 ├─ deploy-commands.js     # registers slash commands (guild or global)
 ├─ commands/              # slash commands (admin/, fun/, utility/)
-├─ utils/                 # pocketbase, leveling, reactionroles, replies helpers
+├─ api/                   # bot's internal HTTP API for the dashboard (names + actions)
+├─ utils/                 # pocketbase, leveling, reactionroles, level/reaction services
 ├─ init/                  # boot-time reaction-role message caching
+├─ test/                  # node --test unit tests (leveling/recovery)
 ├─ pb_migrations/         # PocketBase schema (auto-applied)
 ├─ pocketbase/            # PocketBase Dockerfile + entrypoint
 ├─ web/                   # SvelteKit 5 admin dashboard

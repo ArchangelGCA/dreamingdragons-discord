@@ -80,6 +80,31 @@ function invalidateLevelSettingsCache(guildId) {
 }
 
 /**
+ * Invalidates the in-memory XP cache for a single user in a guild.
+ * Call this after mutating a user's XP outside the normal message flow
+ * (dashboard/API edits) so the next message doesn't overwrite the change
+ * with stale cached data.
+ */
+function invalidateUserCache(guildId, userId) {
+    userXpCache.delete(`${guildId}-${userId}`);
+    pendingUpdates.delete(`${guildId}-${userId}`);
+}
+
+/**
+ * Invalidates the in-memory XP cache for every tracked user in a guild.
+ * Used after bulk operations (recovery / sync).
+ */
+function invalidateGuildUserCache(guildId) {
+    const prefix = `${guildId}-`;
+    for (const key of userXpCache.keys()) {
+        if (key.startsWith(prefix)) userXpCache.delete(key);
+    }
+    for (const key of pendingUpdates.keys()) {
+        if (key.startsWith(prefix)) pendingUpdates.delete(key);
+    }
+}
+
+/**
  * Adds XP to a user, handles leveling up, and rewards
  */
 async function addXpToUser(userId, guildId, client, pb) {
@@ -318,14 +343,16 @@ function cleanupExpiredUserCache() {
     }
 }
 
-// Periodic cache cleanup
-setInterval(cleanupExpiredUserCache, USER_CACHE_TTL / 2);
+// Periodic cache cleanup. Unref'd so it never keeps the process alive on its own.
+setInterval(cleanupExpiredUserCache, USER_CACHE_TTL / 2).unref();
 
 export {
     calculateXpForLevel,
     calculateLevelFromXp,
     calculateXpToNextLevel,
     invalidateLevelSettingsCache,
+    invalidateUserCache,
+    invalidateGuildUserCache,
     addXpToUser,
     checkAndAwardRoles
 };

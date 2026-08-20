@@ -1,9 +1,11 @@
 <script lang="ts">
+	import Banner from '$lib/components/Banner.svelte';
 	let { data } = $props();
 
+	const guild = $derived(data.guild);
+	const members = $derived(data.members);
 	const stats = $derived([
 		{ label: 'Reaction roles', value: data.counts.reactionRoles, icon: '🏷️' },
-		{ label: 'Guilds configured', value: data.counts.levelSettings, icon: '⚙️' },
 		{ label: 'Level rewards', value: data.counts.levelRewards, icon: '🎁' },
 		{ label: 'Tracked users', value: data.counts.userLevels, icon: '👥' }
 	]);
@@ -12,12 +14,22 @@
 <div class="topbar">
 	<div>
 		<h1>Dashboard</h1>
-		<p class="muted">Overview of your bot's data.</p>
+		<p class="muted">
+			{#if guild?.currentGuild}Overview for <strong>{guild.currentGuild.name}</strong>.{:else}Overview of your bot's data.{/if}
+		</p>
 	</div>
 </div>
 
 {#if !data.ok}
-	<div class="alert error">Could not reach PocketBase. Check the bot's database service.</div>
+	<Banner kind="error">Could not reach PocketBase. Check the bot's database service.</Banner>
+{/if}
+{#if guild && !guild.botConfigured}
+	<Banner kind="warn">The bot bridge isn't configured (<code>INTERNAL_API_SECRET</code>). The dashboard works but shows raw IDs and can't post to Discord.</Banner>
+{:else if guild && !guild.botOnline}
+	<Banner kind="warn">Bot is offline — showing raw IDs. Discord names and actions return when the bot is running.</Banner>
+{/if}
+{#if !data.gid && guild?.botOnline && guild.guilds.length === 0}
+	<Banner kind="info">The bot isn't in any servers yet. Invite it to a server to get started.</Banner>
 {/if}
 
 <div class="grid section">
@@ -36,14 +48,23 @@
 	{:else}
 		<table>
 			<thead>
-				<tr><th>#</th><th>User ID</th><th>Guild ID</th><th>Level</th><th>XP</th></tr>
+				<tr><th>#</th><th>Member</th><th>Level</th><th>XP</th></tr>
 			</thead>
 			<tbody>
 				{#each data.topUsers as u, i (u.id)}
+					{@const m = members[u.user_id]}
 					<tr>
 						<td>{i + 1}</td>
-						<td><code>{u.user_id}</code></td>
-						<td><code>{u.guild_id}</code></td>
+						<td>
+							{#if m}
+								<div style="display:flex;align-items:center;gap:0.5rem">
+									<img src={m.avatar} alt="" width="24" height="24" style="border-radius:50%" />
+									<span>{m.displayName}</span>
+								</div>
+							{:else}
+								<code>{u.user_id}</code>
+							{/if}
+						</td>
 						<td>{u.level}</td>
 						<td>{u.xp}</td>
 					</tr>

@@ -15,6 +15,7 @@ RUN npm ci --omit=dev && npm cache clean --force
 COPY --chown=node:node index.js deploy-commands.js ./
 COPY --chown=node:node commands ./commands
 COPY --chown=node:node utils ./utils
+COPY --chown=node:node api ./api
 COPY --chown=node:node init ./init
 
 # Deploys slash commands then starts the bot (see package.json "start").

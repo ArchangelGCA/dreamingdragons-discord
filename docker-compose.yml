@@ -33,6 +33,10 @@ services:
       - POCKETBASE_URL=http://pocketbase:8090
       - POCKETBASE_ADMIN_EMAIL=${POCKETBASE_ADMIN_EMAIL}
       - POCKETBASE_ADMIN_PASSWORD=${POCKETBASE_ADMIN_PASSWORD}
+      # Internal API bridge for the dashboard. NO `ports:` mapping — reachable only
+      # on the internal Docker network at http://bot:${BOT_API_PORT}, never from the host.
+      - INTERNAL_API_SECRET=${INTERNAL_API_SECRET}
+      - BOT_API_PORT=${BOT_API_PORT:-8787}
 
   web:
     build:
@@ -43,10 +47,16 @@ services:
     depends_on:
       pocketbase:
         condition: service_healthy
+      bot:
+        condition: service_started
     environment:
       - POCKETBASE_URL=http://pocketbase:8090
       - ORIGIN=${ORIGIN:-http://localhost:3000}
       - PORT=3000
+      # Server-side bridge to the bot's internal API (names + Discord actions).
+      # Must share the same secret as the bot; host/port must match BOT_API_PORT.
+      - INTERNAL_API_SECRET=${INTERNAL_API_SECRET}
+      - BOT_API_URL=http://bot:${BOT_API_PORT:-8787}
     ports:
       - "${WEB_PORT:-3000}:3000"
 

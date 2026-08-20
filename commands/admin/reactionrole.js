@@ -3,44 +3,24 @@ import {
     PermissionsBitField,
     ChannelType,
     InteractionContextType,
-    MessageFlags,
-    EmbedBuilder
+    MessageFlags
 } from 'discord.js';
 import { getPb } from '../../utils/pocketbase.js';
 import { parseColorHex } from '../../utils/utils.js';
 import { replyError, replySuccess, replyEphemeral } from '../../utils/replies.js';
 import {
     getEmojiIdentifier,
-    buildReactionRoleEmbed,
-    refreshButtonMessage,
     BUTTON_STYLE_CHOICES
 } from '../../utils/reactionroles.js';
-
-/**
- * Determine whether a reaction-role message uses buttons or emoji reactions.
- * @returns {Promise<'button'|'reaction'|null>}
- */
-async function getMessageMode(pb, guildId, messageId) {
-    const filter = pb.filter(`guild_id = {:guild_id} && message_id = {:message_id}`, {
-        guild_id: guildId,
-        message_id: messageId
-    });
-    const records = await pb.collection('reaction_roles').getList(1, 1, { filter, sort: 'created' });
-    if (records.totalItems === 0) return null;
-    return records.items[0].component_type === 'button' ? 'button' : 'reaction';
-}
-
-/** Reject roles the bot cannot assign (hierarchy / managed / @everyone). Returns an error string or null. */
-function validateAssignableRole(interaction, role) {
-    const botMember = interaction.guild.members.me;
-    if (botMember && botMember.roles.highest.position <= role.position) {
-        return `I cannot assign **${role.name}** because it is higher than or equal to my highest role.`;
-    }
-    if (role.id === interaction.guild.id || role.managed) {
-        return 'I cannot assign the @everyone role or managed roles (e.g. Nitro Booster).';
-    }
-    return null;
-}
+import {
+    createMessage,
+    addEntry as svcAddEntry,
+    editEntry as svcEditEntry,
+    removeEntry as svcRemoveEntry,
+    updateEmbed as svcUpdateEmbed,
+    deleteMessage as svcDeleteMessage,
+    ReactionServiceError
+} from '../../utils/reactionservice.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -256,58 +236,21 @@ async function handleSetup(interaction, pb) {
     const embedTitle = interaction.options.getString('embed_title');
     const colorInput = interaction.options.getString('color');
 
-    const roleError = validateAssignableRole(interaction, role);
-    if (roleError) return replyError(interaction, roleError);
-
-    // Emoji is required for reaction mode, optional (decorative) for button mode.
-    let emojiIdentifier = null;
-    if (emojiInput) {
-        emojiIdentifier = getEmojiIdentifier(emojiInput);
-        if (!emojiIdentifier) {
-            return replyError(interaction, `Invalid emoji: "${emojiInput}". Use a standard emoji or a custom emoji from this server.`);
-        }
-    } else if (!useButton) {
-        return replyError(interaction, 'An emoji is required when not using button mode. Provide `emoji` or set `button: true`.');
-    }
-
-    // Channel permission check.
-    const botMember = interaction.guild.members.me;
-    const perms = targetChannel.permissionsFor(botMember);
-    const needsReactions = !useButton;
-    if (!perms?.has(PermissionsBitField.Flags.SendMessages) || !perms?.has(PermissionsBitField.Flags.EmbedLinks) ||
-        (needsReactions && !perms?.has(PermissionsBitField.Flags.AddReactions))) {
-        return replyError(interaction, `I lack permissions in ${targetChannel} (need Send Messages, Embed Links${needsReactions ? ', Add Reactions' : ''}).`);
-    }
-
     try {
-        const embed = buildReactionRoleEmbed({
-            description: messageContent,
-            title: embedTitle,
-            color: colorInput,
-            roleColor: role.color || undefined
+        const { messageId } = await createMessage(interaction.client, pb, interaction.guildId, {
+            channelId: targetChannel.id,
+            embed: { title: embedTitle, description: messageContent, color: colorInput },
+            entries: [{
+                roleId: role.id,
+                mode: useButton ? 'button' : 'reaction',
+                emoji: emojiInput || undefined,
+                label: label || undefined,
+                style
+            }]
         });
-
-        const reactionMessage = await targetChannel.send({ embeds: [embed] });
-
-        await pb.collection('reaction_roles').create({
-            guild_id: interaction.guildId,
-            channel_id: targetChannel.id,
-            message_id: reactionMessage.id,
-            emoji_identifier: emojiIdentifier || '',
-            role_id: role.id,
-            component_type: useButton ? 'button' : 'reaction',
-            label: label || '',
-            button_style: useButton ? style : ''
-        });
-
-        if (useButton) {
-            await refreshButtonMessage(interaction.client, pb, interaction.guildId, targetChannel.id, reactionMessage.id);
-        } else {
-            await reactionMessage.react(emojiIdentifier);
-        }
-
-        return replySuccess(interaction, `Reaction role created in ${targetChannel} (Message ID: \`${reactionMessage.id}\`).`);
+        return replySuccess(interaction, `Reaction role created in ${targetChannel} (Message ID: \`${messageId}\`).`);
     } catch (error) {
+        if (error instanceof ReactionServiceError) return replyError(interaction, error.message);
         console.error('Error setting up reaction role:', error);
         if (error.code === 10014) return replyError(interaction, `I couldn't use the emoji "${emojiInput}". Custom emojis must be from this server.`);
         if (error.code === 50013) return replyError(interaction, `I'm missing permissions in ${targetChannel}.`);
@@ -324,59 +267,13 @@ async function handleAdd(interaction, pb) {
     const label = interaction.options.getString('label');
     const style = interaction.options.getString('style') || 'secondary';
 
-    const roleError = validateAssignableRole(interaction, role);
-    if (roleError) return replyError(interaction, roleError);
-
     try {
-        const baseFilter = pb.filter(`message_id = {:message_id} && guild_id = {:guild_id}`, { message_id: messageId, guild_id: interaction.guildId });
-        const existing = await pb.collection('reaction_roles').getList(1, 1, { filter: baseFilter, sort: 'created' });
-        if (existing.totalItems === 0) {
-            return replyError(interaction, `No reaction role message found with ID \`${messageId}\` in this server.`);
-        }
-
-        const channelId = existing.items[0].channel_id;
-        const isButton = existing.items[0].component_type === 'button';
-
-        let emojiIdentifier = null;
-        if (emojiInput) {
-            emojiIdentifier = getEmojiIdentifier(emojiInput);
-            if (!emojiIdentifier) return replyError(interaction, `Invalid emoji: "${emojiInput}".`);
-        } else if (!isButton) {
-            return replyError(interaction, 'This is a reaction message, so an emoji is required.');
-        }
-
-        if (isButton) {
-            const dupeFilter = pb.filter(`message_id = {:m} && role_id = {:r} && guild_id = {:g}`, { m: messageId, r: role.id, g: interaction.guildId });
-            const dupe = await pb.collection('reaction_roles').getList(1, 1, { filter: dupeFilter });
-            if (dupe.totalItems > 0) return replyError(interaction, `The role <@&${role.id}> is already on this message.`);
-
-            const count = await pb.collection('reaction_roles').getList(1, 1, { filter: pb.filter(`message_id = {:m}`, { m: messageId }) });
-            if (count.totalItems >= 25) return replyError(interaction, 'This message already has the maximum of 25 buttons.');
-
-            await pb.collection('reaction_roles').create({
-                guild_id: interaction.guildId, channel_id: channelId, message_id: messageId,
-                emoji_identifier: emojiIdentifier || '', role_id: role.id,
-                component_type: 'button', label: label || '', button_style: style
-            });
-            await refreshButtonMessage(interaction.client, pb, interaction.guildId, channelId, messageId);
-            return replySuccess(interaction, `Added button role → <@&${role.id}>.`);
-        }
-
-        const dupeFilter = pb.filter(`message_id = {:m} && emoji_identifier = {:e} && guild_id = {:g}`, { m: messageId, e: emojiIdentifier, g: interaction.guildId });
-        const dupe = await pb.collection('reaction_roles').getList(1, 1, { filter: dupeFilter });
-        if (dupe.totalItems > 0) return replyError(interaction, `That emoji is already used on this message for <@&${dupe.items[0].role_id}>.`);
-
-        const channel = await interaction.client.channels.fetch(channelId);
-        const message = await channel.messages.fetch(messageId);
-        await message.react(emojiIdentifier);
-
-        await pb.collection('reaction_roles').create({
-            guild_id: interaction.guildId, channel_id: channelId, message_id: messageId,
-            emoji_identifier: emojiIdentifier, role_id: role.id,
-            component_type: 'reaction', label: '', button_style: ''
+        await svcAddEntry(interaction.client, pb, interaction.guildId, messageId, {
+            roleId: role.id, emoji: emojiInput || undefined, label: label || undefined, style
         });
-        return replySuccess(interaction, `Added reaction role: ${emojiInput} → <@&${role.id}>.`);
+        return replySuccess(interaction, `Added role → <@&${role.id}>.`);
     } catch (error) {
+        if (error instanceof ReactionServiceError) return replyError(interaction, error.message);
         console.error('Error adding reaction role:', error);
         if (error.code === 10008) return replyError(interaction, `Message \`${messageId}\` not found.`);
         if (error.code === 10014) return replyError(interaction, `I couldn't use the emoji "${emojiInput}".`);
@@ -443,37 +340,26 @@ async function handleEdit(interaction, pb) {
         const existing = await pb.collection('reaction_roles').getList(1, 1, { filter: baseFilter, sort: 'created' });
         if (existing.totalItems === 0) return replyError(interaction, `No reaction role message found with ID \`${messageId}\`.`);
 
-        const channelId = existing.items[0].channel_id;
         const isButton = existing.items[0].component_type === 'button';
-        const channel = await interaction.client.channels.fetch(channelId);
-        const message = await channel.messages.fetch(messageId);
-
         const summary = [];
 
         if (isEditingEntry) {
             const entryError = await editEntry(interaction, pb, {
-                messageId, isButton, message, currentEmojiInput, targetRole,
-                newRole, newEmojiInput, newLabel, newStyle, channelId, summary
+                messageId, isButton, currentEmojiInput, targetRole,
+                newRole, newEmojiInput, newLabel, newStyle, summary
             });
             if (entryError) return replyError(interaction, entryError);
         }
 
         if (isEditingMessage) {
-            const currentEmbed = message.embeds[0];
-            if (!currentEmbed) return replyError(interaction, 'This message has no embed to edit.');
-
-            const newEmbed = EmbedBuilder.from(currentEmbed);
-
-            if (newMessageContent) newEmbed.setDescription(newMessageContent.replace(/\\n/g, '\n\n'));
-            if (newEmbedTitle) newEmbed.setTitle(newEmbedTitle);
-            else if (newEmbedTitle === '') newEmbed.setTitle(null);
-            if (newColorInput) {
-                const color = parseColorHex(newColorInput);
-                if (color === null) return replyError(interaction, `Invalid color: ${newColorInput}. Use a hex code like #FF0000.`);
-                newEmbed.setColor(color);
+            if (newColorInput && parseColorHex(newColorInput) === null) {
+                return replyError(interaction, `Invalid color: ${newColorInput}. Use a hex code like #FF0000.`);
             }
-
-            await message.edit({ embeds: [newEmbed] });
+            const embedPatch = {};
+            if (newMessageContent) embedPatch.description = newMessageContent;
+            if (newEmbedTitle !== null) embedPatch.title = newEmbedTitle; // '' clears the title
+            if (newColorInput) embedPatch.color = newColorInput;
+            await svcUpdateEmbed(interaction.client, pb, interaction.guildId, messageId, embedPatch);
             summary.push('message content updated.');
         }
 
@@ -487,11 +373,11 @@ async function handleEdit(interaction, pb) {
 }
 
 /**
- * Edit a single role entry on a reaction-role message (button or reaction).
+ * Locate the entry being edited and delegate the mutation to the reaction service.
  * Mutates `opts.summary`. Returns an error string, or null on success.
  */
 async function editEntry(interaction, pb, opts) {
-    const { messageId, isButton, message, currentEmojiInput, targetRole, newRole, newEmojiInput, newLabel, newStyle, channelId, summary } = opts;
+    const { messageId, isButton, currentEmojiInput, targetRole, newRole, newEmojiInput, newLabel, newStyle, summary } = opts;
 
     // Locate the record being edited.
     let record;
@@ -511,32 +397,19 @@ async function editEntry(interaction, pb, opts) {
         record = res.items[0];
     }
 
-    if (newRole) {
-        const roleError = validateAssignableRole(interaction, newRole);
-        if (roleError) return roleError;
+    // Build a patch containing only the fields that were actually provided.
+    const patch = {};
+    if (newRole) { patch.roleId = newRole.id; summary.push(`role → <@&${newRole.id}>.`); }
+    if (newEmojiInput !== null) { patch.emoji = newEmojiInput; summary.push(`emoji → ${newEmojiInput || '(none)'}.`); }
+    if (isButton && newLabel !== null) { patch.label = newLabel; summary.push('label updated.'); }
+    if (isButton && newStyle) { patch.style = newStyle; summary.push(`style → ${newStyle}.`); }
+
+    try {
+        await svcEditEntry(interaction.client, pb, interaction.guildId, record.id, patch);
+    } catch (error) {
+        if (error instanceof ReactionServiceError) return error.message;
+        throw error;
     }
-
-    const updateData = {};
-    if (newRole) { updateData.role_id = newRole.id; summary.push(`role → <@&${newRole.id}>.`); }
-    if (isButton && newLabel !== null && newLabel !== undefined) { updateData.label = newLabel; summary.push('label updated.'); }
-    if (isButton && newStyle) { updateData.button_style = newStyle; summary.push(`style → ${newStyle}.`); }
-
-    if (newEmojiInput) {
-        const newId = getEmojiIdentifier(newEmojiInput);
-        if (!newId) return `Invalid new emoji: "${newEmojiInput}".`;
-        updateData.emoji_identifier = newId;
-        summary.push(`emoji → ${newEmojiInput}.`);
-
-        if (!isButton) {
-            const oldReaction = message.reactions.cache.find(r =>
-                r.emoji.id ? r.emoji.toString() === record.emoji_identifier : r.emoji.name === record.emoji_identifier);
-            if (oldReaction) await oldReaction.users.remove(interaction.client.user.id);
-            await message.react(newId);
-        }
-    }
-
-    await pb.collection('reaction_roles').update(record.id, updateData);
-    if (isButton) await refreshButtonMessage(interaction.client, pb, interaction.guildId, channelId, messageId);
     return null;
 }
 
@@ -551,7 +424,6 @@ async function handleRemove(interaction, pb) {
         const existing = await pb.collection('reaction_roles').getList(1, 1, { filter: baseFilter, sort: 'created' });
         if (existing.totalItems === 0) return replyError(interaction, `No reaction role message found with ID \`${messageId}\`.`);
 
-        const channelId = existing.items[0].channel_id;
         const isButton = existing.items[0].component_type === 'button';
 
         let record;
@@ -570,24 +442,10 @@ async function handleRemove(interaction, pb) {
         }
 
         const roleMention = `<@&${record.role_id}>`;
-        await pb.collection('reaction_roles').delete(record.id);
-
-        try {
-            const channel = await interaction.client.channels.fetch(channelId);
-            const message = await channel.messages.fetch(messageId);
-            if (isButton) {
-                await refreshButtonMessage(interaction.client, pb, interaction.guildId, channelId, messageId);
-            } else {
-                const reaction = message.reactions.cache.find(r =>
-                    r.emoji.id ? r.emoji.toString() === record.emoji_identifier : r.emoji.name === record.emoji_identifier);
-                if (reaction) await reaction.users.remove(interaction.client.user.id);
-            }
-        } catch {
-            // Message gone; DB cleanup already done.
-        }
-
+        await svcRemoveEntry(interaction.client, pb, interaction.guildId, record.id);
         return replySuccess(interaction, `Removed reaction role → ${roleMention}.`);
     } catch (error) {
+        if (error instanceof ReactionServiceError) return replyError(interaction, error.message);
         console.error('Error removing reaction role:', error);
         return replyError(interaction, 'An error occurred while removing the reaction role.');
     }
@@ -599,32 +457,13 @@ async function handleDelete(interaction, pb) {
     const shouldDeleteMessage = interaction.options.getBoolean('delete_message') ?? false;
 
     try {
-        const filter = pb.filter(`message_id = {:m} && guild_id = {:g}`, { m: messageId, g: interaction.guildId });
-        const records = await pb.collection('reaction_roles').getFullList({ filter });
-        if (records.length === 0) return replyError(interaction, `No reaction roles found for message \`${messageId}\`.`);
-
-        const channelId = records[0].channel_id;
-        try {
-            const channel = await interaction.client.channels.fetch(channelId);
-            const message = await channel.messages.fetch(messageId);
-            if (shouldDeleteMessage) {
-                await message.delete();
-            } else if (records[0].component_type === 'button') {
-                await message.edit({ components: [] });
-            } else {
-                await message.reactions.removeAll();
-            }
-        } catch {
-            console.warn(`Could not modify message ${messageId}; it may already be deleted.`);
-        }
-
-        for (const record of records) {
-            await pb.collection('reaction_roles').delete(record.id);
-        }
-
+        const { removed } = await svcDeleteMessage(interaction.client, pb, interaction.guildId, messageId, {
+            deleteDiscordMessage: shouldDeleteMessage
+        });
         const action = shouldDeleteMessage ? 'deleted the message and removed' : 'removed';
-        return replySuccess(interaction, `Successfully ${action} all ${records.length} reaction role(s) for message \`${messageId}\`.`);
+        return replySuccess(interaction, `Successfully ${action} all ${removed} reaction role(s) for message \`${messageId}\`.`);
     } catch (error) {
+        if (error instanceof ReactionServiceError) return replyError(interaction, error.message);
         console.error('Error deleting reaction role message:', error);
         if (error.code === 50013) return replyError(interaction, `I'm missing permissions to modify the message.`);
         return replyError(interaction, 'An error occurred while deleting the reaction role message.');
