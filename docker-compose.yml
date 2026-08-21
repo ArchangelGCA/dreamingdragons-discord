@@ -71,5 +71,32 @@ services:
     depends_on:
       - web
 
+  # Continuous deployment: polls the git remote and rebuilds the stack in place
+  # when new commits land — no GitHub Actions needed. Inert until AUTO_UPDATE=true.
+  # It drives Docker via the mounted socket (root-equivalent host access — see
+  # README "Automatic updates"). It never touches named volumes, so data is safe.
+  updater:
+    build:
+      context: ./deploy/updater
+    container_name: ddbot-updater
+    restart: unless-stopped
+    environment:
+      - AUTO_UPDATE=${AUTO_UPDATE:-false}
+      - AUTO_UPDATE_INTERVAL=${AUTO_UPDATE_INTERVAL:-300}
+      - AUTO_UPDATE_BRANCH=${AUTO_UPDATE_BRANCH:-master}
+      - AUTO_UPDATE_REMOTE=${AUTO_UPDATE_REMOTE:-origin}
+      # Only needed for PRIVATE repos (GitHub PAT / fine-grained token). Leave blank for public.
+      - GIT_PULL_TOKEN=${GIT_PULL_TOKEN:-}
+      # Auto-detected from this container's compose labels; set only to override.
+      - COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-}
+      # Pass through active profiles (e.g. "tunnel") so the updater manages the same services.
+      - COMPOSE_PROFILES=${COMPOSE_PROFILES:-}
+    volumes:
+      # Drive the host Docker daemon (build/recreate the sibling containers).
+      - /var/run/docker.sock:/var/run/docker.sock
+      # The repo itself — read for git pull, and the compose file / build contexts.
+      - .:/repo
+    working_dir: /repo
+
 volumes:
   pb_data:

@@ -96,6 +96,13 @@ All configuration is via `.env` (see `.env.example` for the annotated template):
 | `WEB_PORT` | — | Host port for the dashboard (default `3000`). |
 | `POCKETBASE_URL` | — | Only for running **outside** Docker; inside compose it's `http://pocketbase:8090` automatically. |
 | `TUNNEL_TOKEN` | — | Cloudflare Tunnel token (only with `--profile tunnel`). |
+| `AUTO_UPDATE` | — | `true` enables the auto-updater (continuous deployment). Default `false`. See [Automatic updates](#-automatic-updates-continuous-deployment). |
+| `AUTO_UPDATE_INTERVAL` | — | Seconds between remote checks (default `300`). |
+| `AUTO_UPDATE_BRANCH` | — | Branch to track/deploy (default `master`). |
+| `AUTO_UPDATE_REMOTE` | — | Git remote to pull from (default `origin`). |
+| `GIT_PULL_TOKEN` | — | **Private repos only:** GitHub token so the updater can fetch. Blank for public repos. |
+| `COMPOSE_PROJECT_NAME` | — | Normally auto-detected; only set to force the stack/volume name. |
+| `COMPOSE_PROFILES` | — | Active profiles (e.g. `tunnel`) so the updater manages those services too. |
 
 <sub>✅ required · ▲ required for live dashboard features (safe to leave blank for a DB-only dashboard) · — optional</sub>
 
@@ -117,6 +124,72 @@ URL, then:
 ```bash
 docker compose --profile tunnel up -d
 ```
+
+## 🔄 Automatic updates (continuous deployment)
+
+Turn your server into a self-updating deployment: **`git push` → the server pulls
+and rebuilds itself**, in place, without wiping any data. No GitHub Actions, no
+webhooks, no manual SSH.
+
+A small `updater` service (bundled in `docker-compose.yml`) polls your git remote
+on a timer. When the tracked branch has new commits it:
+
+1. `git reset --hard` the repo to the fetched commit (untracked files like `.env`
+   and PocketBase data are left untouched — no `git clean`);
+2. rebuilds the images and **recreates only the changed containers**;
+3. leaves the `pb_data` volume — and every other named volume — completely alone,
+   so **your database is never reset**.
+
+It never rebuilds *itself* mid-update, so a deploy can't interrupt the loop.
+
+### Enable it
+
+```bash
+# In your server's .env:
+AUTO_UPDATE=true
+AUTO_UPDATE_INTERVAL=300      # check every 5 minutes (tune as you like)
+AUTO_UPDATE_BRANCH=master     # the branch you deploy from
+COMPOSE_PROFILES=tunnel       # if (and only if) you run the Cloudflare Tunnel
+
+# Bring the WHOLE stack up (and build the updater image the first time).
+# With COMPOSE_PROFILES=tunnel set above, this also starts cloudflared —
+# no need for the --profile flag anymore.
+docker compose up -d --build
+
+# Watch the updater work:
+docker compose logs -f updater
+```
+
+> ⚠ Run `docker compose up -d --build` (no service name). Adding `updater` to the
+> end scopes the command to **only** that one container and leaves the bot,
+> dashboard, PocketBase and tunnel stopped — the updater does *not* launch the
+> stack itself, it only reacts to future pushes.
+
+That's it. From now on, every push to `AUTO_UPDATE_BRANCH` is live within
+`AUTO_UPDATE_INTERVAL` seconds. To pause auto-updates, set `AUTO_UPDATE=false`
+and run `docker compose up -d updater` again (that one *is* scoped to the updater
+on purpose — it stays up but idles; the rest of the stack keeps running).
+
+> **Using the Cloudflare Tunnel too?** Add `COMPOSE_PROFILES=tunnel` to `.env` so
+> the updater keeps managing `cloudflared` alongside the rest of the stack.
+
+> **Private repo?** Set `GIT_PULL_TOKEN` to a GitHub token
+> (fine-grained, *Contents: read*). Public repos need nothing.
+
+### ⚠ Security & notes
+
+- The updater talks to the host Docker daemon through a mounted
+  `/var/run/docker.sock`, which is **root-equivalent access to the host**. Only
+  enable it on a server you control. It's **off by default**.
+- The stack/volume identity is auto-detected from the running containers, so the
+  updater drives the *same* project (and the *same* `pb_data`) your host started —
+  regardless of the folder name. Override with `COMPOSE_PROJECT_NAME` only if you
+  know you need to.
+- To update the **updater itself** after changing its files, run once by hand:
+  `docker compose up -d --build updater`.
+- Prefer a host-managed schedule instead of a sidecar? The same effect is a
+  one-liner in `cron`/systemd:
+  `cd /path/to/dd-bot && git fetch && git reset --hard origin/master && docker compose up -d --build`.
 
 ## 🧱 ARM64 / multi-arch
 
@@ -185,6 +258,7 @@ dd-bot/
 ├─ pb_migrations/         # PocketBase schema (auto-applied)
 ├─ pocketbase/            # PocketBase Dockerfile + entrypoint
 ├─ web/                   # SvelteKit 5 admin dashboard
+├─ deploy/updater/        # auto-update sidecar (continuous deployment)
 ├─ Dockerfile             # bot image
 └─ docker-compose.yml     # full stack
 ```
