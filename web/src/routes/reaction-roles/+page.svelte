@@ -7,6 +7,7 @@
 	import ChannelSelect from '$lib/components/ChannelSelect.svelte';
 	import RoleBadge from '$lib/components/RoleBadge.svelte';
 	import CopyId from '$lib/components/CopyId.svelte';
+	import MentionField from '$lib/components/MentionField.svelte';
 	import type { RoleDTO } from '$lib/server/bot';
 
 	let { data } = $props();
@@ -160,8 +161,15 @@
 				</div>
 			</div>
 			<label for="c-desc">Message / description</label>
-			<textarea id="c-desc" name="description" rows="3" required placeholder="Select your roles below:"
-			></textarea>
+			<MentionField
+				id="c-desc"
+				name="description"
+				rows={3}
+				required
+				roles={data.roles}
+				channels={data.channels}
+				placeholder="Select your roles below:"
+			/>
 
 			<div class="entries-head">
 				<h3>Roles</h3>
@@ -365,12 +373,14 @@
 										<label for="rs-title-{g.message_id}">Embed title (optional)</label>
 										<input id="rs-title-{g.message_id}" name="title" placeholder="Pick your roles" />
 										<label for="rs-desc-{g.message_id}">Description</label>
-										<textarea
+										<MentionField
 											id="rs-desc-{g.message_id}"
 											name="description"
-											rows="2"
+											rows={2}
+											roles={data.roles}
+											channels={data.channels}
 											placeholder="Select your roles below:"
-										></textarea>
+										/>
 										<label for="rs-color-{g.message_id}">Color hex</label>
 										<input id="rs-color-{g.message_id}" name="color" placeholder="#8b5cf6" />
 										<button
@@ -484,14 +494,31 @@
 								>
 									<input type="hidden" name="guild_id" value={gid} />
 									<input type="hidden" name="message_id" value={g.message_id} />
-									<p class="muted hint" style="margin:0 0 0.5rem">Leave a field blank to keep its current value.</p>
+									{#if g.exists === false}
+										<p class="muted hint" style="margin:0 0 0.5rem">
+											This message is missing on Discord — re-post it first to edit its text.
+										</p>
+									{:else}
+										<p class="muted hint" style="margin:0 0 0.5rem">
+											Pre-filled with the current message. Edit the text, ping roles or link channels, then save.
+										</p>
+									{/if}
 									<label for="embed-title-{g.message_id}">Title</label>
-									<input id="embed-title-{g.message_id}" name="title" />
+									<input id="embed-title-{g.message_id}" name="title" value={g.title ?? ''} placeholder="Pick your roles" />
 									<label for="embed-desc-{g.message_id}">Description</label>
-									<textarea id="embed-desc-{g.message_id}" name="description" rows="2"></textarea>
+									<MentionField
+										id="embed-desc-{g.message_id}"
+										name="description"
+										rows={3}
+										required
+										value={g.description ?? ''}
+										roles={data.roles}
+										channels={data.channels}
+										placeholder="Select your roles below:"
+									/>
 									<label for="embed-color-{g.message_id}">Color hex</label>
-									<input id="embed-color-{g.message_id}" name="color" placeholder="#8b5cf6" />
-									<button class="btn small block" style="margin-top:0.6rem" disabled={!online || busy === 'embed-' + g.message_id}>
+									<input id="embed-color-{g.message_id}" name="color" value={g.color ?? ''} placeholder="#8b5cf6" />
+									<button class="btn small block" style="margin-top:0.6rem" disabled={!online || g.exists === false || busy === 'embed-' + g.message_id}>
 										{#if busy === 'embed-' + g.message_id}<span class="spinner"></span>{/if} Update
 									</button>
 								</form>

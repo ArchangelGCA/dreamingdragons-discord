@@ -29,6 +29,11 @@ interface Group {
 	type: 'button' | 'reaction';
 	entries: ReactionRole[];
 	exists?: boolean;
+	// Current embed content on Discord, so the "edit message text" form can be
+	// pre-filled instead of forcing the admin to retype the whole message.
+	title?: string;
+	description?: string;
+	color?: string;
 }
 
 export const load: PageServerLoad = async ({ locals, parent, url }) => {
@@ -67,10 +72,17 @@ export const load: PageServerLoad = async ({ locals, parent, url }) => {
 		if (r.ok) roles = r.data;
 		if (c.ok) channels = c.data;
 
-		// Flag which stored messages still exist on Discord (so we can offer "resend").
+		// Flag which stored messages still exist on Discord (so we can offer "resend"),
+		// and carry their current embed content so the edit form can be pre-filled.
 		if (groups.length > 0) {
 			const statuses = await getMessagesStatus(gid, groups.map((g) => g.message_id));
-			for (const g of groups) g.exists = statuses[g.message_id]?.exists ?? true;
+			for (const g of groups) {
+				const st = statuses[g.message_id];
+				g.exists = st?.exists ?? true;
+				g.title = st?.title ?? '';
+				g.description = st?.description ?? '';
+				g.color = st?.color ?? '';
+			}
 		}
 		// If a channel is selected for adoption, list the bot's messages there.
 		if (SNOWFLAKE.test(adoptChannel)) {
@@ -129,18 +141,16 @@ export const actions: Actions = {
 		const guild_id = String(f.get('guild_id') || '').trim();
 		const message_id = String(f.get('message_id') || '').trim();
 		if (!SNOWFLAKE.test(guild_id) || !SNOWFLAKE.test(message_id)) return fail(400, { error: 'Invalid target.' });
-		// Only send non-empty fields — blanks mean "keep the current value".
-		const embed: { title?: string; description?: string; color?: string } = {};
+		// The form is pre-filled with the message's current content, so this is a
+		// full replace: send every field as-is (empty title/color clear them). A
+		// blank description is rejected because a message needs body text.
 		const title = String(f.get('title') || '').trim();
 		const description = String(f.get('description') || '').trim();
 		const color = String(f.get('color') || '').trim();
-		if (title) embed.title = title;
-		if (description) embed.description = description;
-		if (color) embed.color = color;
-		if (Object.keys(embed).length === 0) return fail(400, { error: 'Enter at least one field to change.' });
-		const res = await updateReactionEmbed(guild_id, message_id, embed);
+		if (!description) return fail(400, { error: 'Description cannot be empty.' });
+		const res = await updateReactionEmbed(guild_id, message_id, { title, description, color });
 		if (!res.ok) return fail(502, { error: res.error });
-		return { success: 'Message embed updated.' };
+		return { success: 'Message updated.' };
 	},
 
 	addEntry: async ({ request }) => {

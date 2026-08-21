@@ -18,9 +18,15 @@
 	];
 
 	// Surface form action results (success/error) as toasts, once each.
+	// `page.form` persists after an action and the effect can re-run on every
+	// `invalidateAll()` (triggered by use:enhance `update()`), so guard against
+	// re-toasting the same result object — otherwise a single submit produces a
+	// burst of duplicate toasts.
+	let lastForm: unknown = null;
 	$effect(() => {
 		const f = page.form as { success?: unknown; error?: unknown } | null;
-		if (!f) return;
+		if (!f || f === lastForm) return;
+		lastForm = f;
 		if (typeof f.success === 'string') pushToast('success', f.success);
 		else if (typeof f.error === 'string') pushToast('error', f.error);
 	});

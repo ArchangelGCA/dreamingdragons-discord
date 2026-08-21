@@ -305,13 +305,19 @@ export function resendReactionMessage(
 	);
 }
 
-/** Check which stored reaction-role messages still exist on Discord. */
+/** Check which stored reaction-role messages still exist on Discord (and their current embed content). */
+export interface MessageStatus {
+	exists: boolean;
+	title?: string;
+	description?: string;
+	color?: string;
+}
 export async function getMessagesStatus(
 	guildId: string,
 	messageIds: string[]
-): Promise<Record<string, { exists: boolean }>> {
+): Promise<Record<string, MessageStatus>> {
 	if (messageIds.length === 0) return {};
-	const r = await botFetch<{ statuses: Record<string, { exists: boolean }> }>(
+	const r = await botFetch<{ statuses: Record<string, MessageStatus> }>(
 		`/guilds/${guildId}/reaction-roles/status`,
 		{ method: 'POST', body: JSON.stringify({ messageIds }) }
 	);

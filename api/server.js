@@ -214,7 +214,14 @@ function requireUserId(userId) {
     }
 }
 
-/** Existence check for a batch of reaction-role message IDs (are they still on Discord?). */
+/**
+ * Existence check for a batch of reaction-role message IDs (are they still on
+ * Discord?). Also returns the message's current embed content (title/description/
+ * color) so the dashboard can pre-fill its "edit message text" form instead of
+ * making the admin retype everything. Runs the per-message lookups in PARALLEL —
+ * a sequential loop here was the main cause of the page feeling "really slow"
+ * and of the Add-role button appearing stuck while a reload was in flight.
+ */
 async function reactionMessagesStatus(client, pb, guildId, messageIds) {
     const ids = messageIds.map(String).filter((s) => /^\d{5,25}$/.test(s)).slice(0, 100);
     const statuses = {};
@@ -225,15 +232,36 @@ async function reactionMessagesStatus(client, pb, guildId, messageIds) {
     });
     const chanOf = new Map();
     for (const r of records) if (!chanOf.has(r.message_id)) chanOf.set(r.message_id, r.channel_id);
-    for (const id of ids) {
-        const channelId = chanOf.get(id);
-        let exists = false;
-        if (channelId) {
-            const channel = await client.channels.fetch(channelId).catch(() => null);
-            if (channel) exists = !!(await channel.messages.fetch(id).catch(() => null));
+
+    // Cache channel fetches so multiple messages in the same channel share one lookup.
+    const channelCache = new Map();
+    const fetchChannel = (channelId) => {
+        if (!channelCache.has(channelId)) {
+            channelCache.set(channelId, client.channels.fetch(channelId).catch(() => null));
         }
-        statuses[id] = { exists };
-    }
+        return channelCache.get(channelId);
+    };
+
+    await Promise.all(
+        ids.map(async (id) => {
+            const channelId = chanOf.get(id);
+            let status = { exists: false };
+            if (channelId) {
+                const channel = await fetchChannel(channelId);
+                const message = channel ? await channel.messages.fetch(id).catch(() => null) : null;
+                if (message) {
+                    const embed = message.embeds?.[0];
+                    status = {
+                        exists: true,
+                        title: embed?.title ?? '',
+                        description: embed?.description ?? '',
+                        color: typeof embed?.color === 'number' ? toHexColor(embed.color) : ''
+                    };
+                }
+            }
+            statuses[id] = status;
+        })
+    );
     return { statuses };
 }
 
