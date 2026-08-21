@@ -251,5 +251,180 @@ export async function deleteMessage(client, pb, guildId, messageId, { deleteDisc
     return { messageId, removed: records.length, deletedDiscordMessage: deleteDiscordMessage };
 }
 
+// NEW-FUNCS-PLACEHOLDER
 
+/**
+ * Reuse (adopt) an existing bot-authored message as a reaction-role message —
+ * without posting a new one. Useful for recovering old setups after a DB loss.
+ * Buttons are rendered onto the existing message; reactions are added to it.
+ */
+export async function adoptMessage(client, pb, guildId, { channelId, messageId, mode, entries }) {
+    const guild = await client.guilds.fetch(guildId);
+    if (!Array.isArray(entries) || entries.length === 0) {
+        throw new ReactionServiceError('At least one role entry is required.');
+    }
+    if (!/^\d{5,25}$/.test(String(messageId || ''))) {
+        throw new ReactionServiceError('A valid message ID is required.');
+    }
 
+    const useButton = (mode ?? 'button') === 'button';
+    const channel = await client.channels.fetch(channelId).catch(() => null);
+    if (!channel || channel.guildId !== guildId) {
+        throw new ReactionServiceError('Target channel was not found in this server.');
+    }
+    const message = await channel.messages.fetch(messageId).catch(() => null);
+    if (!message) throw new ReactionServiceError('That message was not found in the selected channel.');
+    if (message.author?.id !== client.user.id) {
+        throw new ReactionServiceError('I can only reuse messages that were originally sent by me (the bot).');
+    }
+
+    const existing = await pb.collection('reaction_roles').getList(1, 1, {
+        filter: pb.filter('guild_id = {:g} && message_id = {:m}', { g: guildId, m: messageId })
+    });
+    if (existing.totalItems > 0) {
+        throw new ReactionServiceError('That message is already managed as a reaction-role message.');
+    }
+
+    const perms = channel.permissionsFor(guild.members.me);
+    const need = [PermissionsBitField.Flags.ViewChannel];
+    if (!useButton) need.push(PermissionsBitField.Flags.AddReactions, PermissionsBitField.Flags.ReadMessageHistory);
+    if (!perms || !perms.has(need)) {
+        throw new ReactionServiceError(`I lack permissions in that channel (need View Channel${useButton ? '' : ', Add Reactions, Read Message History'}).`);
+    }
+
+    const prepared = [];
+    for (const e of entries) {
+        const role = await requireRole(guild, e.roleId);
+        const emojiId = e.emoji ? getEmojiIdentifier(e.emoji) : null;
+        if (e.emoji && !emojiId) throw new ReactionServiceError(`Invalid emoji: "${e.emoji}".`);
+        if (!useButton && !emojiId) throw new ReactionServiceError(`An emoji is required for reaction-mode role ${role.name}.`);
+        prepared.push({ role, emojiId, label: e.label || '', style: e.style || 'secondary' });
+    }
+    if (useButton && prepared.length > 25) throw new ReactionServiceError('A message can have at most 25 buttons.');
+
+    for (const p of prepared) {
+        await pb.collection('reaction_roles').create({
+            guild_id: guildId, channel_id: channelId, message_id: messageId,
+            emoji_identifier: p.emojiId || '', role_id: p.role.id,
+            component_type: useButton ? 'button' : 'reaction',
+            label: useButton ? p.label : '', button_style: useButton ? p.style : ''
+        });
+    }
+
+    if (useButton) await refreshButtonMessage(client, pb, guildId, channelId, messageId);
+    else for (const p of prepared) await message.react(p.emojiId);
+
+    return { messageId, channelId, count: prepared.length };
+}
+
+// RESEND-PLACEHOLDER
+
+/**
+ * Re-post the message for an existing reaction-role group (e.g. the original was
+ * deleted on Discord). Posts a fresh message, repoints all records to it, and
+ * rebuilds its buttons/reactions. An old copy that still exists is removed.
+ */
+export async function resendMessage(client, pb, guildId, messageId, { channelId, embed } = {}) {
+    const records = await pb.collection('reaction_roles').getFullList({
+        filter: pb.filter('guild_id = {:g} && message_id = {:m}', { g: guildId, m: messageId }),
+        sort: 'created'
+    });
+    if (records.length === 0) throw new ReactionServiceError(`No reaction roles found for message \`${messageId}\`.`);
+
+    const useButton = records[0].component_type === 'button';
+    const targetChannelId = channelId || records[0].channel_id;
+    const guild = await client.guilds.fetch(guildId);
+    const channel = await client.channels.fetch(targetChannelId).catch(() => null);
+    if (!channel || channel.guildId !== guildId) {
+        throw new ReactionServiceError('Target channel was not found in this server.');
+    }
+
+    const perms = channel.permissionsFor(guild.members.me);
+    const need = [PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.EmbedLinks];
+    if (!useButton) need.push(PermissionsBitField.Flags.AddReactions);
+    if (!perms || !perms.has(need)) {
+        throw new ReactionServiceError(`I lack permissions in that channel (need Send Messages, Embed Links${useButton ? '' : ', Add Reactions'}).`);
+    }
+
+    // Remove the old copy if it somehow still exists, to avoid a stale duplicate.
+    try {
+        const oldChannel = await client.channels.fetch(records[0].channel_id).catch(() => null);
+        const oldMsg = oldChannel ? await oldChannel.messages.fetch(messageId).catch(() => null) : null;
+        if (oldMsg && oldMsg.author?.id === client.user.id) await oldMsg.delete().catch(() => {});
+    } catch {
+        // best-effort
+    }
+
+    const roleColor = guild.roles.cache.get(records[0].role_id)?.color || undefined;
+    const builtEmbed = buildReactionRoleEmbed({
+        description: embed?.description || 'Select your roles below:',
+        title: embed?.title,
+        color: embed?.color,
+        roleColor
+    });
+    const message = await channel.send({ embeds: [builtEmbed] });
+
+    for (const r of records) {
+        await pb.collection('reaction_roles').update(r.id, {
+            message_id: message.id,
+            channel_id: targetChannelId
+        });
+    }
+
+    if (useButton) {
+        await refreshButtonMessage(client, pb, guildId, targetChannelId, message.id);
+    } else {
+        for (const r of records) if (r.emoji_identifier) await message.react(r.emoji_identifier).catch(() => {});
+    }
+
+    return { messageId: message.id, oldMessageId: messageId, channelId: targetChannelId, count: records.length };
+}
+
+// LISTBOT-PLACEHOLDER
+
+/**
+ * List recent bot-authored messages in a channel so the dashboard can offer them
+ * for adoption. Flags which are already managed as reaction-role messages.
+ */
+export async function listBotMessages(client, pb, guildId, channelId, { limit = 50 } = {}) {
+    const guild = await client.guilds.fetch(guildId);
+    const channel = await client.channels.fetch(channelId).catch(() => null);
+    if (!channel || channel.guildId !== guildId) {
+        throw new ReactionServiceError('Channel was not found in this server.');
+    }
+    const perms = channel.permissionsFor(guild.members.me);
+    if (!perms || !perms.has([PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.ReadMessageHistory])) {
+        throw new ReactionServiceError('I cannot read that channel (need View Channel, Read Message History).');
+    }
+
+    const fetched = await channel.messages
+        .fetch({ limit: Math.min(100, Math.max(1, limit)) })
+        .catch(() => null);
+    if (!fetched) throw new ReactionServiceError('Failed to read messages from that channel.');
+
+    const botMsgs = [...fetched.values()].filter((m) => m.author?.id === client.user.id);
+
+    const managed = await pb.collection('reaction_roles').getFullList({
+        filter: pb.filter('guild_id = {:g}', { g: guildId }),
+        fields: 'message_id'
+    });
+    const managedIds = new Set(managed.map((r) => r.message_id));
+
+    const messages = botMsgs.map((m) => {
+        const embed = m.embeds?.[0];
+        const preview = (embed?.title || embed?.description || m.content || '(no text content)')
+            .replace(/\s+/g, ' ')
+            .slice(0, 90);
+        return {
+            id: m.id,
+            preview,
+            hasEmbed: (m.embeds?.length ?? 0) > 0,
+            hasComponents: (m.components?.length ?? 0) > 0,
+            reactionCount: m.reactions?.cache?.size ?? 0,
+            createdTimestamp: m.createdTimestamp,
+            managed: managedIds.has(m.id)
+        };
+    });
+
+    return { messages };
+}

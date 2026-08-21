@@ -3,15 +3,29 @@
 	import Banner from '$lib/components/Banner.svelte';
 	import RoleSelect from '$lib/components/RoleSelect.svelte';
 	import ChannelSelect from '$lib/components/ChannelSelect.svelte';
+	import RoleBadge from '$lib/components/RoleBadge.svelte';
+	import Avatar from '$lib/components/Avatar.svelte';
+	import type { RoleDTO } from '$lib/server/bot';
 
 	let { data, form } = $props();
 
 	const guild = $derived(data.guild);
 	const gid = $derived(data.gid);
 
-	const roleName = $derived(new Map(data.roles.map((r) => [r.id, r.name])));
-	const channelName = $derived(new Map(data.channels.map((c) => [c.id, c.name])));
+	const roleById = $derived(new Map<string, RoleDTO>(data.roles.map((r) => [r.id, r])));
 	const s = $derived(data.settings);
+
+	// Track which form is submitting so its button can show a spinner.
+	let busy = $state<string | null>(null);
+	function track(key: string) {
+		return () => {
+			busy = key;
+			return async ({ update }: { update: () => Promise<void> }) => {
+				await update();
+				busy = null;
+			};
+		};
+	}
 </script>
 
 <div class="topbar">
@@ -27,19 +41,16 @@
 	<Banner kind="warn">Bot is offline — showing raw IDs and Discord actions are unavailable.</Banner>
 {/if}
 
-{#if form?.success}<div class="alert success">{form.success}</div>{/if}
-{#if form?.error}<div class="alert error">{form.error}</div>{/if}
-
 {#if gid}
 	<div class="section">
-		<h2>Settings</h2>
-		<form method="POST" action="?/saveSettings" use:enhance class="card">
+		<h2>⚙️ Settings</h2>
+		<form method="POST" action="?/saveSettings" use:enhance={track('settings')} class="card pad-lg">
 			<input type="hidden" name="guild_id" value={gid} />
 			<label for="nc">Notification channel</label>
 			<ChannelSelect id="nc" name="notification_channel_id" channels={data.channels}
 				value={s?.notification_channel_id ?? ''} />
 
-			<div class="row" style="margin-top:0.75rem">
+			<div class="row" style="margin-top:0.85rem">
 				<div>
 					<label for="xpm">XP per message</label>
 					<input id="xpm" name="xp_per_message" type="number" min="1" max="1000" value={s?.xp_per_message ?? 20} />
@@ -50,18 +61,24 @@
 				</div>
 			</div>
 
-			<label style="display:flex;align-items:center;gap:0.5rem;margin-top:0.75rem">
-				<input type="checkbox" name="enabled" checked={s?.enabled ?? false} style="width:auto" /> Enabled
-			</label>
-			<button class="btn" style="margin-top:0.75rem">Save settings</button>
+			<div class="between" style="margin-top:1.1rem">
+				<label class="switch" style="margin:0">
+					<input type="checkbox" name="enabled" checked={s?.enabled ?? false} />
+					<span class="track"></span>
+					Leveling enabled
+				</label>
+				<button class="btn" disabled={busy === 'settings'}>
+					{#if busy === 'settings'}<span class="spinner"></span>{/if} Save settings
+				</button>
+			</div>
 		</form>
 	</div>
 
 	<!-- APPEND-REWARDS -->
 
 	<div class="section">
-		<h2>Role rewards</h2>
-		<form method="POST" action="?/addReward" use:enhance class="card" style="margin-bottom:1rem">
+		<h2>🎁 Role rewards</h2>
+		<form method="POST" action="?/addReward" use:enhance={track('reward')} class="card" style="margin-bottom:1rem">
 			<input type="hidden" name="guild_id" value={gid} />
 			<div class="row">
 				<div style="flex:2">
@@ -73,80 +90,96 @@
 					<input id="rw-level" name="level" type="number" min="1" required />
 				</div>
 				<div style="flex:0">
-					<button class="btn">Add / update</button>
+					<button class="btn" disabled={busy === 'reward'}>
+						{#if busy === 'reward'}<span class="spinner"></span>{/if} Add / update
+					</button>
 				</div>
 			</div>
 		</form>
 
 		{#if data.rewards.length === 0}
-			<div class="card muted">No role rewards defined.</div>
+			<div class="empty"><span class="big">🎁</span><span>No role rewards defined yet.</span></div>
 		{:else}
-			<table>
-				<thead><tr><th>Level</th><th>Role</th><th></th></tr></thead>
-				<tbody>
-					{#each data.rewards as r (r.id)}
-						<tr>
-							<td>{r.level}</td>
-							<td>
-								{#if roleName.has(r.role_id)}@{roleName.get(r.role_id)}{:else}<code>{r.role_id}</code>{/if}
-							</td>
-							<td style="text-align:right">
-								<form method="POST" action="?/deleteReward" use:enhance>
-									<input type="hidden" name="id" value={r.id} />
-									<button class="btn danger small">Delete</button>
-								</form>
-							</td>
-						</tr>
-					{/each}
-				</tbody>
-			</table>
+			<div class="table-wrap scroll">
+				<table>
+					<thead><tr><th style="width:90px">Level</th><th>Role</th><th></th></tr></thead>
+					<tbody>
+						{#each data.rewards as r (r.id)}
+							{@const role = roleById.get(r.role_id)}
+							<tr>
+								<td><span class="lvl-chip">Lv {r.level}</span></td>
+								<td><RoleBadge name={role?.name ?? null} color={role?.color ?? null} id={r.role_id} /></td>
+								<td class="right">
+									<form method="POST" action="?/deleteReward" use:enhance>
+										<input type="hidden" name="id" value={r.id} />
+										<button class="btn danger secondary small">Delete</button>
+									</form>
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
 		{/if}
 	</div>
 
+	<!-- APPEND-MAINTENANCE -->
+
 	<div class="section">
-		<h2>Maintenance</h2>
-		<div class="card">
-			<div class="row" style="align-items:center">
-				<form method="POST" action="?/previewRecover" use:enhance>
+		<h2>🛠️ Maintenance</h2>
+		<div class="card pad-lg">
+			<div class="cluster">
+				<form method="POST" action="?/previewRecover" use:enhance={track('recover')}>
 					<input type="hidden" name="guild_id" value={gid} />
-					<button class="btn secondary" disabled={!guild?.botOnline}>Recover XP from roles…</button>
+					<button class="btn secondary" disabled={!guild?.botOnline || busy === 'recover'}>
+						{#if busy === 'recover'}<span class="spinner"></span>{/if} 🔄 Recover XP from roles…
+					</button>
 				</form>
-				<form method="POST" action="?/syncRoles" use:enhance>
+				<form method="POST" action="?/syncRoles" use:enhance={track('sync')}>
 					<input type="hidden" name="guild_id" value={gid} />
-					<button class="btn secondary" disabled={!guild?.botOnline}>Sync roles to levels</button>
+					<button class="btn secondary" disabled={!guild?.botOnline || busy === 'sync'}>
+						{#if busy === 'sync'}<span class="spinner"></span>{/if} 🎭 Sync roles to levels
+					</button>
 				</form>
 			</div>
-			<p class="muted" style="font-size:0.82rem;margin:0.75rem 0 0">
+			<p class="muted" style="font-size:0.82rem;margin:0.85rem 0 0">
 				<strong>Recover XP</strong> grants members the XP tied to reward roles they already hold (fixes a lost
 				database). <strong>Sync roles</strong> re-awards reward roles based on current XP. Both need the bot online.
 			</p>
 
 			{#if form?.recover}
 				{@const rec = form.recover}
-				<div class="section" style="margin-top:1rem">
+				<div style="margin-top:1.1rem">
 					{#if rec.applied}
-						<div class="alert success">
-							Applied: {rec.updated} updated, {rec.skipped} skipped, {rec.errors} errors.
-						</div>
+						<div class="alert success">Applied: {rec.updated} updated, {rec.skipped} skipped, {rec.errors} errors.</div>
 					{:else if rec.changes.length === 0}
 						<div class="alert success">Nothing to recover — everyone already has enough XP.</div>
 					{:else}
 						<div class="alert">Preview: {rec.changes.length} member(s) would be updated, {rec.skipped} skipped. Review, then apply.</div>
-						<table>
-							<thead><tr><th>Member</th><th>From</th><th>→ To</th></tr></thead>
-							<tbody>
-								{#each rec.changes as c (c.userId)}
-									<tr>
-										<td>{c.name ?? c.userId}</td>
-										<td class="muted">Lv {c.fromLevel} · {c.fromXp} XP</td>
-										<td>Lv {c.toLevel} · {c.toXp} XP</td>
-									</tr>
-								{/each}
-							</tbody>
-						</table>
-						<form method="POST" action="?/applyRecover" use:enhance style="margin-top:0.75rem">
+						<div class="table-wrap scroll">
+							<table>
+								<thead><tr><th>Member</th><th>From</th><th>→ To</th></tr></thead>
+								<tbody>
+									{#each rec.changes as c (c.userId)}
+										<tr>
+											<td>
+												<div class="cluster" style="gap:0.5rem">
+													<Avatar name={c.name ?? c.userId} seed={c.userId} size={26} />
+													<span>{c.name ?? c.userId}</span>
+												</div>
+											</td>
+											<td class="muted">Lv {c.fromLevel} · {c.fromXp} XP</td>
+											<td><strong>Lv {c.toLevel}</strong> · {c.toXp} XP</td>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+						</div>
+						<form method="POST" action="?/applyRecover" use:enhance={track('apply')} style="margin-top:0.85rem">
 							<input type="hidden" name="guild_id" value={gid} />
-							<button class="btn">Apply recovery to {rec.changes.length} member(s)</button>
+							<button class="btn" disabled={busy === 'apply'}>
+								{#if busy === 'apply'}<span class="spinner"></span>{/if} Apply recovery to {rec.changes.length} member(s)
+							</button>
 						</form>
 					{/if}
 				</div>
@@ -155,3 +188,14 @@
 	</div>
 {/if}
 
+<style>
+	.lvl-chip {
+		display: inline-block;
+		padding: 0.16rem 0.6rem;
+		border-radius: var(--pill);
+		background: var(--accent-grad-soft);
+		color: var(--accent-soft);
+		font-weight: 700;
+		font-size: 0.8rem;
+	}
+</style>

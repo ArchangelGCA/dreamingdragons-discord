@@ -254,4 +254,68 @@ export function deleteReactionMessage(guildId: string, messageId: string, delete
 	);
 }
 
+// ── Reaction-role: reuse & resend ────────────────────────────────────────────
+
+export interface BotMessageDTO {
+	id: string;
+	preview: string;
+	hasEmbed: boolean;
+	hasComponents: boolean;
+	reactionCount: number;
+	createdTimestamp: number;
+	managed: boolean;
+}
+
+/** List bot-authored messages in a channel that can be adopted as reaction roles. */
+export async function getBotMessages(
+	guildId: string,
+	channelId: string,
+	limit = 50
+): Promise<BotResult<BotMessageDTO[]>> {
+	const r = await botFetch<{ messages: BotMessageDTO[] }>(
+		`/guilds/${guildId}/reaction-roles/bot-messages?channelId=${encodeURIComponent(channelId)}&limit=${limit}`
+	);
+	return r.ok ? { ok: true, data: r.data.messages } : r;
+}
+
+export interface AdoptMessageInput {
+	channelId: string;
+	messageId: string;
+	mode: 'button' | 'reaction';
+	entries: ReactionEntryInput[];
+}
+
+/** Reuse an existing bot message as a reaction-role message (no new post). */
+export function adoptReactionMessage(guildId: string, payload: AdoptMessageInput) {
+	return botFetch<{ messageId: string; channelId: string; count: number }>(
+		`/guilds/${guildId}/reaction-roles/messages/adopt`,
+		{ method: 'POST', body: JSON.stringify(payload) }
+	);
+}
+
+/** Re-post a reaction-role message that was deleted on Discord. */
+export function resendReactionMessage(
+	guildId: string,
+	messageId: string,
+	payload: { channelId?: string; embed?: { title?: string; description?: string; color?: string } }
+) {
+	return botFetch<{ messageId: string; oldMessageId: string; channelId: string; count: number }>(
+		`/guilds/${guildId}/reaction-roles/messages/${messageId}/resend`,
+		{ method: 'POST', body: JSON.stringify(payload) }
+	);
+}
+
+/** Check which stored reaction-role messages still exist on Discord. */
+export async function getMessagesStatus(
+	guildId: string,
+	messageIds: string[]
+): Promise<Record<string, { exists: boolean }>> {
+	if (messageIds.length === 0) return {};
+	const r = await botFetch<{ statuses: Record<string, { exists: boolean }> }>(
+		`/guilds/${guildId}/reaction-roles/status`,
+		{ method: 'POST', body: JSON.stringify({ messageIds }) }
+	);
+	return r.ok ? r.data.statuses : {};
+}
+
 

@@ -31,6 +31,9 @@ import {
     editEntry,
     removeEntry,
     deleteMessage,
+    adoptMessage,
+    resendMessage,
+    listBotMessages,
     ReactionServiceError
 } from '../utils/reactionservice.js';
 
@@ -211,13 +214,56 @@ function requireUserId(userId) {
     }
 }
 
+/** Existence check for a batch of reaction-role message IDs (are they still on Discord?). */
+async function reactionMessagesStatus(client, pb, guildId, messageIds) {
+    const ids = messageIds.map(String).filter((s) => /^\d{5,25}$/.test(s)).slice(0, 100);
+    const statuses = {};
+    if (ids.length === 0) return { statuses };
+    const records = await pb.collection('reaction_roles').getFullList({
+        filter: pb.filter('guild_id = {:g}', { g: guildId }),
+        fields: 'message_id,channel_id'
+    });
+    const chanOf = new Map();
+    for (const r of records) if (!chanOf.has(r.message_id)) chanOf.set(r.message_id, r.channel_id);
+    for (const id of ids) {
+        const channelId = chanOf.get(id);
+        let exists = false;
+        if (channelId) {
+            const channel = await client.channels.fetch(channelId).catch(() => null);
+            if (channel) exists = !!(await channel.messages.fetch(id).catch(() => null));
+        }
+        statuses[id] = { exists };
+    }
+    return { statuses };
+}
+
 /** Reaction-role routes: segments after /guilds/:id/reaction-roles. */
 async function handleReactionRoles(client, pb, guild, rest, method, query, body) {
     const guildId = guild.id;
     try {
+        // GET /bot-messages?channelId=…  — bot-authored messages available to adopt
+        if (method === 'GET' && rest[0] === 'bot-messages' && rest.length === 1) {
+            const channelId = query.get('channelId') || '';
+            if (!/^\d{5,25}$/.test(channelId)) throw new HttpError(400, 'A valid channelId is required.');
+            return await listBotMessages(client, pb, guildId, channelId, {
+                limit: clampInt(query.get('limit'), 1, 100, 50)
+            });
+        }
+        // POST /status  — which stored messages still exist on Discord
+        if (method === 'POST' && rest[0] === 'status' && rest.length === 1) {
+            return await reactionMessagesStatus(client, pb, guildId, Array.isArray(body.messageIds) ? body.messageIds : []);
+        }
         // POST /messages  — create a new message
         if (method === 'POST' && rest[0] === 'messages' && rest.length === 1) {
             return await createMessage(client, pb, guildId, body);
+        }
+        // POST /messages/adopt  — reuse an existing bot message
+        if (method === 'POST' && rest[0] === 'messages' && rest[1] === 'adopt' && rest.length === 2) {
+            return await adoptMessage(client, pb, guildId, body);
+        }
+        // POST /messages/:messageId/resend  — repost a (missing) message
+        if (method === 'POST' && rest[0] === 'messages' && rest[2] === 'resend' && rest.length === 3) {
+            return await resendMessage(client, pb, guildId, rest[1], body);
         }
         // PATCH /messages/:messageId  — update the embed
         if (method === 'PATCH' && rest[0] === 'messages' && rest.length === 2) {

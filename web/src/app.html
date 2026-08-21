@@ -1,9 +1,27 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme-init>
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="text-scale" content="scale" />
+		<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+		<meta name="theme-color" content="#0d0d13" media="(prefers-color-scheme: dark)" />
+
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+			rel="stylesheet"
+		/>
+
+		<!-- Apply the saved theme before first paint to avoid a flash. -->
+		<script>
+			try {
+				var t = localStorage.getItem('dd-theme');
+				if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+			} catch (e) {}
+		</script>
+
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">

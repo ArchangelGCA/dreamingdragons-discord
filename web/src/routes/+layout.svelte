@@ -3,6 +3,10 @@
 	import favicon from '$lib/assets/favicon.svg';
 	import { page } from '$app/state';
 	import GuildSwitcher from '$lib/components/GuildSwitcher.svelte';
+	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+	import Avatar from '$lib/components/Avatar.svelte';
+	import Toasts from '$lib/components/Toasts.svelte';
+	import { pushToast } from '$lib/toast.svelte';
 
 	let { data, children } = $props();
 
@@ -12,6 +16,14 @@
 		{ href: '/reaction-roles', label: 'Reaction Roles', icon: '🏷️' },
 		{ href: '/users', label: 'Users', icon: '👥' }
 	];
+
+	// Surface form action results (success/error) as toasts, once each.
+	$effect(() => {
+		const f = page.form as { success?: unknown; error?: unknown } | null;
+		if (!f) return;
+		if (typeof f.success === 'string') pushToast('success', f.success);
+		else if (typeof f.error === 'string') pushToast('error', f.error);
+	});
 </script>
 
 <svelte:head>
@@ -22,7 +34,10 @@
 {#if data.admin}
 	<div class="app">
 		<aside class="sidebar">
-			<div class="brand">🐉 dd-bot</div>
+			<div class="brand">
+				<span class="brand-mark">🐉</span>
+				<span>dd-bot</span>
+			</div>
 
 			{#if data.guild}
 				<GuildSwitcher guilds={data.guild.guilds} currentGuildId={data.guild.currentGuildId} />
@@ -32,45 +47,34 @@
 				</div>
 			{/if}
 
-			<nav>
+			<nav class="nav">
 				{#each nav as item (item.href)}
 					<a href={item.href} class:active={page.url.pathname === item.href}>
-						{item.icon}&nbsp; {item.label}
+						<span class="nav-icon">{item.icon}</span>
+						{item.label}
 					</a>
 				{/each}
 			</nav>
+
 			<div class="spacer"></div>
-			<div class="muted" style="font-size:0.75rem;padding:0 0.5rem 0.5rem">
-				{data.admin.email}
+
+			<div class="sidebar-divider"></div>
+			<ThemeToggle />
+			<div class="user-chip">
+				<Avatar name={data.admin.email} seed={data.admin.email} size={26} />
+				<span class="who">{data.admin.email}</span>
 			</div>
 			<form method="POST" action="/logout">
-				<button class="btn secondary" style="width:100%">Log out</button>
+				<button class="btn secondary block">Log out</button>
 			</form>
 		</aside>
+
 		<main class="main">
 			{@render children()}
 		</main>
 	</div>
+	<Toasts />
 {:else}
 	{@render children()}
+	<Toasts />
 {/if}
-
-<style>
-	.bot-status {
-		display: flex;
-		align-items: center;
-		gap: 0.4rem;
-		font-size: 0.75rem;
-		color: var(--text-muted);
-		padding: 0 0.6rem 0.75rem;
-	}
-	.bot-status .dot {
-		width: 8px;
-		height: 8px;
-		border-radius: 50%;
-		background: var(--red);
-	}
-	.bot-status.online .dot {
-		background: var(--green);
-	}
-</style>
