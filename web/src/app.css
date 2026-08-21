@@ -573,6 +573,9 @@ input[type='checkbox'] {
 .btn:active {
 	transform: translateY(0);
 }
+.btn:focus-visible:not(:hover) {
+	box-shadow: none;
+}
 .btn:disabled,
 .btn[disabled] {
 	opacity: 0.5;
