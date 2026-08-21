@@ -1,42 +1,44 @@
 /* ============================================================
    dd-bot admin — design system
-   Dark-first UI, DreamingDragons violet→fuchsia accents.
+   Dark-first UI, DreamingDragons teal→cyan accents.
+   Brand palette (dreamingdragons.net):
+     teal #00a594 · cyan #20dde0 · deep navy #0f2c4b · night #1a142f
    ============================================================ */
 
 :root {
 	/* Brand / accent */
-	--accent: #8b5cf6;
-	--accent-strong: #7c3aed;
-	--accent-soft: #a78bfa;
-	--magenta: #d946ef;
-	--gold: #f59e0b;
-	--accent-grad: linear-gradient(135deg, #7c3aed 0%, #a855f7 45%, #d946ef 100%);
-	--accent-grad-soft: linear-gradient(135deg, rgba(124, 58, 237, 0.16), rgba(217, 70, 239, 0.16));
-	--accent-glow: 0 10px 30px -8px rgba(139, 92, 246, 0.5);
+	--accent: #00a594;
+	--accent-strong: #007e8c;
+	--accent-soft: #20dde0;
+	--magenta: #20dde0;
+	--gold: #f5a623;
+	--accent-grad: linear-gradient(135deg, #0f2c4b 0%, #006d78 52%, #00a594 100%);
+	--accent-grad-soft: linear-gradient(135deg, rgba(0, 165, 148, 0.16), rgba(32, 221, 224, 0.16));
+	--accent-glow: 0 10px 30px -8px rgba(0, 165, 148, 0.5);
 
 	--blurple: #5865f2;
 	--green: #22c55e;
 	--red: #ef4444;
-	--yellow: #f59e0b;
-	--blue: #3b82f6;
+	--yellow: #f5a623;
+	--blue: #20dde0;
 
 	/* Surfaces — light (default) */
-	--bg: #f4f3fb;
-	--bg-tint: radial-gradient(1200px 620px at 100% -10%, rgba(139, 92, 246, 0.10), transparent 60%);
+	--bg: #eef4f5;
+	--bg-tint: radial-gradient(1200px 620px at 100% -10%, rgba(0, 165, 148, 0.10), transparent 60%);
 	--bg-elev: #ffffff;
-	--bg-elev-2: #faf9fe;
-	--bg-inset: #edeaf6;
-	--bg-hover: #f0edf9;
-	--border: #e6e2f1;
-	--border-strong: #d6d0e8;
-	--text: #191622;
-	--text-muted: #6b6680;
-	--text-faint: #9a95ad;
+	--bg-elev-2: #f6fafb;
+	--bg-inset: #e6eef0;
+	--bg-hover: #eaf3f3;
+	--border: #dde8ea;
+	--border-strong: #c7d6d9;
+	--text: #12222b;
+	--text-muted: #5c6b73;
+	--text-faint: #93a2a9;
 
-	--shadow-sm: 0 1px 2px rgba(24, 20, 40, 0.06), 0 1px 3px rgba(24, 20, 40, 0.07);
-	--shadow: 0 4px 14px -3px rgba(24, 20, 40, 0.10), 0 2px 6px -3px rgba(24, 20, 40, 0.08);
-	--shadow-lg: 0 26px 50px -14px rgba(24, 20, 40, 0.22);
-	--ring: 0 0 0 3px rgba(139, 92, 246, 0.32);
+	--shadow-sm: 0 1px 2px rgba(15, 44, 75, 0.06), 0 1px 3px rgba(15, 44, 75, 0.07);
+	--shadow: 0 4px 14px -3px rgba(15, 44, 75, 0.10), 0 2px 6px -3px rgba(15, 44, 75, 0.08);
+	--shadow-lg: 0 26px 50px -14px rgba(15, 44, 75, 0.22);
+	--ring: 0 0 0 3px rgba(0, 165, 148, 0.30);
 
 	--radius-sm: 8px;
 	--radius: 12px;
@@ -52,42 +54,42 @@
 
 @media (prefers-color-scheme: dark) {
 	:root:not([data-theme='light']) {
-		--bg: #0d0d13;
-		--bg-tint: radial-gradient(1100px 580px at 100% -8%, rgba(139, 92, 246, 0.16), transparent 60%),
-			radial-gradient(900px 520px at -8% 108%, rgba(217, 70, 239, 0.10), transparent 60%);
-		--bg-elev: #16161f;
-		--bg-elev-2: #1b1b26;
-		--bg-inset: #1f1f2b;
-		--bg-hover: #242432;
-		--border: #2a2a38;
-		--border-strong: #383850;
-		--text: #ece9f6;
-		--text-muted: #a29daf;
-		--text-faint: #6f6a80;
+		--bg: #0a0e13;
+		--bg-tint: radial-gradient(1100px 580px at 100% -8%, rgba(0, 165, 148, 0.18), transparent 60%),
+			radial-gradient(900px 520px at -8% 108%, rgba(32, 221, 224, 0.10), transparent 60%);
+		--bg-elev: #111820;
+		--bg-elev-2: #16202a;
+		--bg-inset: #1a2530;
+		--bg-hover: #1f2b38;
+		--border: #263441;
+		--border-strong: #35485a;
+		--text: #e8f1f3;
+		--text-muted: #9aacb5;
+		--text-faint: #667883;
 		--shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
 		--shadow: 0 8px 24px -6px rgba(0, 0, 0, 0.5);
 		--shadow-lg: 0 30px 60px -15px rgba(0, 0, 0, 0.65);
-		--ring: 0 0 0 3px rgba(139, 92, 246, 0.45);
+		--ring: 0 0 0 3px rgba(32, 221, 224, 0.40);
 		color-scheme: dark;
 	}
 }
 :root[data-theme='dark'] {
-	--bg: #0d0d13;
-	--bg-tint: radial-gradient(1100px 580px at 100% -8%, rgba(139, 92, 246, 0.16), transparent 60%),
-		radial-gradient(900px 520px at -8% 108%, rgba(217, 70, 239, 0.10), transparent 60%);
-	--bg-elev: #16161f;
-	--bg-elev-2: #1b1b26;
-	--bg-inset: #1f1f2b;
-	--bg-hover: #242432;
-	--border: #2a2a38;
-	--border-strong: #383850;
-	--text: #ece9f6;
-	--text-muted: #a29daf;
-	--text-faint: #6f6a80;
+	--bg: #0a0e13;
+	--bg-tint: radial-gradient(1100px 580px at 100% -8%, rgba(0, 165, 148, 0.18), transparent 60%),
+		radial-gradient(900px 520px at -8% 108%, rgba(32, 221, 224, 0.10), transparent 60%);
+	--bg-elev: #111820;
+	--bg-elev-2: #16202a;
+	--bg-inset: #1a2530;
+	--bg-hover: #1f2b38;
+	--border: #263441;
+	--border-strong: #35485a;
+	--text: #e8f1f3;
+	--text-muted: #9aacb5;
+	--text-faint: #667883;
 	--shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
 	--shadow: 0 8px 24px -6px rgba(0, 0, 0, 0.5);
 	--shadow-lg: 0 30px 60px -15px rgba(0, 0, 0, 0.65);
-	--ring: 0 0 0 3px rgba(139, 92, 246, 0.45);
+	--ring: 0 0 0 3px rgba(32, 221, 224, 0.40);
 	color-scheme: dark;
 }
 
@@ -96,7 +98,7 @@
 	box-sizing: border-box;
 }
 *::selection {
-	background: rgba(139, 92, 246, 0.35);
+	background: rgba(0, 165, 148, 0.35);
 }
 html {
 	scrollbar-color: var(--border-strong) transparent;
