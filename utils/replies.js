@@ -1,4 +1,5 @@
-import { EmbedBuilder, MessageFlags } from 'discord.js';
+import { MessageFlags } from 'discord.js';
+import { CV2, CV2_EPHEMERAL, Colors, container, statusCard, text } from './ui.js';
 
 /**
  * Shorthand for the ephemeral message flag, so callers don't repeat the bitfield.
@@ -6,20 +7,41 @@ import { EmbedBuilder, MessageFlags } from 'discord.js';
 export const EPHEMERAL = MessageFlags.Ephemeral;
 
 /**
- * Reply (or edit an already-deferred/replied interaction) with an ephemeral message.
- * Handles the replied/deferred state transparently.
+ * Reply (or edit an already-deferred/replied interaction) with CV2 components.
+ * Handles the replied/deferred state transparently: an edit can only flip the
+ * IsComponentsV2 flag, so ephemeral-ness is inherited from the original defer.
+ * @param {import('discord.js').RepliableInteraction} interaction
+ * @param {Array<import('discord.js').ContainerBuilder>} components
+ * @param {{ephemeral?: boolean}} [options]
+ */
+export async function replyComponents(interaction, components, { ephemeral = true } = {}) {
+    try {
+        if (interaction.deferred || interaction.replied) {
+            return await interaction.editReply({ components, flags: CV2 });
+        }
+        return await interaction.reply({ components, flags: ephemeral ? CV2_EPHEMERAL : CV2 });
+    } catch (error) {
+        console.error('Failed to send component reply:', error);
+        return null;
+    }
+}
+
+/**
+ * Reply with an ephemeral message. String payloads are rendered inside a
+ * branded container so even plain informational replies match the bot's look.
  * @param {import('discord.js').RepliableInteraction} interaction
  * @param {string|import('discord.js').InteractionReplyOptions} payload
  */
 export async function replyEphemeral(interaction, payload) {
-    const options = typeof payload === 'string' ? { content: payload } : payload;
-
+    if (typeof payload === 'string') {
+        return replyComponents(interaction, [container(Colors.BRAND, text(payload))]);
+    }
+    // Object payloads (embeds/content/components) are sent as provided.
     try {
         if (interaction.deferred || interaction.replied) {
-            // editReply cannot change ephemeral state, but a deferred-ephemeral reply stays ephemeral.
-            return await interaction.editReply(options);
+            return await interaction.editReply(payload);
         }
-        return await interaction.reply({ ...options, flags: EPHEMERAL });
+        return await interaction.reply({ ...payload, flags: EPHEMERAL });
     } catch (error) {
         console.error('Failed to send ephemeral reply:', error);
         return null;
@@ -27,25 +49,22 @@ export async function replyEphemeral(interaction, payload) {
 }
 
 /**
- * Send a standardized error reply (❌ prefixed) as an ephemeral message.
+ * Send a standardized error reply as an ephemeral status card.
  */
 export async function replyError(interaction, message) {
-    return replyEphemeral(interaction, `❌ ${message}`);
+    return replyComponents(interaction, [statusCard('error', message)]);
 }
 
 /**
- * Send a standardized success reply (✅ prefixed) as an ephemeral message.
+ * Send a standardized success reply as an ephemeral status card.
  */
 export async function replySuccess(interaction, message) {
-    return replyEphemeral(interaction, `✅ ${message}`);
+    return replyComponents(interaction, [statusCard('success', message)]);
 }
 
 /**
- * Build a simple branded embed used for consistent bot messaging.
+ * Send a standardized informational reply as an ephemeral status card.
  */
-export function brandEmbed({ title, description, color = 0x5865f2 } = {}) {
-    const embed = new EmbedBuilder().setColor(color);
-    if (title) embed.setTitle(title);
-    if (description) embed.setDescription(description);
-    return embed;
+export async function replyInfo(interaction, message) {
+    return replyComponents(interaction, [statusCard('info', message)]);
 }

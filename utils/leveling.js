@@ -1,3 +1,5 @@
+import { CV2, Colors, container, thumbnailSection } from './ui.js';
+
 // Cache for level settings by guild ID
 const levelSettingsCache = new Map();
 const CACHE_TTL = 15 * 60 * 1000; // 15 minutes cache TTL
@@ -200,8 +202,17 @@ async function addXpToUser(userId, guildId, client, pb) {
                 const channel = await guild.channels.fetch(notificationChannelId);
 
                 if (channel) {
+                    const card = container(
+                        Colors.BRAND,
+                        thumbnailSection([
+                            `## 🎉 Level ${newLevel}!`,
+                            `Congratulations ${member} — keep chatting to climb the leaderboard!`
+                        ], member.displayAvatarURL({ size: 128 }))
+                    );
                     await channel.send({
-                        content: `Congratulations ${member}! You've reached **Level ${newLevel}**!`
+                        components: [card],
+                        flags: CV2,
+                        allowedMentions: { users: [userId] }
                     });
                 }
             } catch (error) {

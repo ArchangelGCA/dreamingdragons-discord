@@ -7,6 +7,9 @@ import {fileURLToPath, pathToFileURL} from 'node:url';
 import {loadReactionRoleMessages} from "./init/init.js";
 import {addXpToUser} from './utils/leveling.js';
 import {BUTTON_ID_PREFIX} from './utils/reactionroles.js';
+import {LEADERBOARD_BUTTON_PREFIX} from './utils/levelui.js';
+import {CV2, Colors, container, text} from './utils/ui.js';
+import {replyComponents, replyError, replyInfo} from './utils/replies.js';
 import {startApiServer} from './api/server.js';
 
 // Load environment variables
@@ -62,6 +65,8 @@ async function loadCommands() {
                 const command = commandModule.default;
 
                 if (command && 'data' in command && 'execute' in command) {
+                    // The folder name doubles as the help-category for the command.
+                    command.category = folder;
                     client.commands.set(command.data.name, command);
                     // console.log(`[HANDLER LOADED] ${command.data.name}`); // Debug
                 } else {
@@ -118,7 +123,7 @@ async function handleCommandInteraction(interaction) {
         console.error("PocketBase instance unavailable for command interaction.");
         if (!interaction.replied && !interaction.deferred) {
             try {
-                await interaction.reply({content: 'Bot is initializing, please wait.', flags: MessageFlags.Ephemeral});
+                await replyInfo(interaction, 'Bot is initializing, please wait.');
             } catch {
             }
         }
@@ -141,13 +146,8 @@ async function handleCommandInteraction(interaction) {
         await command.execute(interaction);
     } catch (error) {
         console.error(`Error executing command ${interaction.commandName}:`, error);
-        const response = {content: 'There was an error executing this command!', flags: MessageFlags.Ephemeral};
         try {
-            if (interaction.replied || interaction.deferred) {
-                await interaction.followUp(response);
-            } else {
-                await interaction.reply(response);
-            }
+            await replyError(interaction, 'There was an error executing this command!');
         } catch (replyError) {
             console.error("Error sending error reply:", replyError);
         }
@@ -191,17 +191,10 @@ async function handleReactionAdd(reaction, user) {
 
             // Send temporary notification message
             try {
-                const role = guild.roles.cache.get(roleId);
-                const roleName = role?.name || "Unknown Role";
-                const roleColor = role?.color || 0x3498db;
-
                 const tempMessage = await message.channel.send({
-                    content: `<@${user.id}>`,
-                    embeds: [{
-                        color: roleColor,
-                        description: `✅ You've received the **${roleName}** role!`,
-                        footer: {text: "This notification will disappear shortly."}
-                    }]
+                    components: [await buildRoleToast(guild, roleId, user.id, true)],
+                    flags: CV2,
+                    allowedMentions: {users: [user.id]}
                 });
                 setTimeout(() => {
                     tempMessage.delete().catch(() => {
@@ -267,17 +260,10 @@ async function handleReactionRemove(reaction, user) {
             console.log(`[Reaction Remove] Role ${roleId} removed from ${user.tag} in ${guild.id}`);
 
             try {
-                const role = guild.roles.cache.get(roleId);
-                const roleName = role?.name || "Unknown Role";
-                const roleColor = role?.color || 0x3498db;
-
                 const tempMessage = await message.channel.send({
-                    content: `<@${user.id}>`,
-                    embeds: [{
-                        color: roleColor,
-                        description: `❌ You've lost the **${roleName}** role!`,
-                        footer: {text: "This notification will disappear shortly."}
-                    }]
+                    components: [await buildRoleToast(guild, roleId, user.id, false)],
+                    flags: CV2,
+                    allowedMentions: {users: [user.id]}
                 });
                 setTimeout(() => {
                     tempMessage.delete().catch(() => {
@@ -360,14 +346,32 @@ async function handleAutocomplete(interaction) {
 }
 
 /**
+ * Build a small, temporary CV2 toast confirming a role change via emoji reaction.
+ * Accent is the role's color so the toast visually matches the role.
+ */
+async function buildRoleToast(guild, roleId, userId, added) {
+    const role = guild.roles.cache.get(roleId) || await guild.roles.fetch(roleId).catch(() => null);
+    const roleName = role?.name || 'Unknown Role';
+    const accent = role?.color || (added ? Colors.SUCCESS : Colors.GOLD);
+
+    return container(
+        accent,
+        text(added
+            ? `### ✅ <@${userId}> received **${roleName}**`
+            : `### ❌ <@${userId}> lost **${roleName}**`),
+        text('-# This notification will disappear shortly.')
+    );
+}
+
+/**
  * Handle reaction-role button clicks (customId: rr:<recordId>)
  */
-async function handleButtonInteraction(interaction) {
+async function handleReactionRoleButton(interaction) {
     if (!interaction.customId?.startsWith(`${BUTTON_ID_PREFIX}:`)) return;
 
     const pb = await getPb();
     if (!pb || !interaction.guild) {
-        await interaction.reply({content: 'Bot is initializing, please try again shortly.', flags: MessageFlags.Ephemeral}).catch(() => {});
+        await replyError(interaction, 'Bot is initializing, please try again shortly.');
         return;
     }
 
@@ -378,7 +382,7 @@ async function handleButtonInteraction(interaction) {
         try {
             record = await pb.collection('reaction_roles').getOne(recordId);
         } catch {
-            await interaction.reply({content: 'This role button is no longer available.', flags: MessageFlags.Ephemeral}).catch(() => {});
+            await replyError(interaction, 'This role button is no longer available.');
             return;
         }
 
@@ -387,18 +391,23 @@ async function handleButtonInteraction(interaction) {
         const role = interaction.guild.roles.cache.get(record.role_id)
             || await interaction.guild.roles.fetch(record.role_id).catch(() => null);
         if (!role) {
-            await interaction.reply({content: 'That role no longer exists. Please notify an admin.', flags: MessageFlags.Ephemeral});
+            await replyError(interaction, 'That role no longer exists. Please notify an admin.');
             return;
         }
 
         const member = await interaction.guild.members.fetch(interaction.user.id);
 
+        const cardColor = role.color || (member.roles.cache.has(role.id) ? Colors.GOLD : Colors.SUCCESS);
         if (member.roles.cache.has(role.id)) {
             await member.roles.remove(role.id);
-            await interaction.reply({content: `❌ Removed the **${role.name}** role.`, flags: MessageFlags.Ephemeral});
+            await replyComponents(interaction, [
+                container(cardColor, text(`### ❌ <@${interaction.user.id}> lost **${role.name}**`))
+            ]);
         } else {
             await member.roles.add(role.id);
-            await interaction.reply({content: `✅ You now have the **${role.name}** role!`, flags: MessageFlags.Ephemeral});
+            await replyComponents(interaction, [
+                container(cardColor, text(`### ✅ <@${interaction.user.id}> received **${role.name}**`))
+            ]);
         }
     } catch (error) {
         console.error('Error handling reaction role button:', error);
@@ -406,8 +415,21 @@ async function handleButtonInteraction(interaction) {
             ? "I'm missing permissions to manage that role (check my role hierarchy)."
             : 'Something went wrong while updating your roles.';
         if (!interaction.replied && !interaction.deferred) {
-            await interaction.reply({content: msg, flags: MessageFlags.Ephemeral}).catch(() => {});
+            await replyError(interaction, msg);
         }
+    }
+}
+
+/**
+ * Route button interactions to the right handler by custom-id prefix.
+ */
+async function handleButtonInteraction(interaction) {
+    if (interaction.customId?.startsWith(`${BUTTON_ID_PREFIX}:`)) {
+        await handleReactionRoleButton(interaction);
+    } else if (interaction.customId?.startsWith(`${LEADERBOARD_BUTTON_PREFIX}:`)) {
+        // Leaderboard pagination lives on the levels command module.
+        const levelsCommand = client.commands.get('levels');
+        if (levelsCommand?.handlePagination) await levelsCommand.handlePagination(interaction);
     }
 }
 

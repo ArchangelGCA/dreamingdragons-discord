@@ -1,6 +1,7 @@
-import {SlashCommandBuilder, EmbedBuilder} from 'discord.js';
-import {calculateLevelFromXp} from '../../utils/leveling.js';
-import {getPb} from "../../utils/pocketbase.js";
+import { SlashCommandBuilder, MessageFlags } from 'discord.js';
+import { LEADERBOARD_BUTTON_PREFIX, loadLeaderboard, parseLeaderboardCustomId } from '../../utils/levelui.js';
+import { CV2, CV2_EPHEMERAL, statusCard } from '../../utils/ui.js';
+import { getPb } from '../../utils/pocketbase.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -16,51 +17,61 @@ export default {
         await interaction.deferReply();
         const pb = await getPb();
 
-        const page = interaction.options.getInteger('page') || 1;
-        const perPage = 10;
-
         try {
-            // Get all users sorted by XP
-            const filter = pb.filter(`guild_id = {:guild_id}`, {guild_id: interaction.guildId});
-            const levelData = await pb.collection('user_levels').getList(page, perPage, {
-                filter,
-                sort: '-xp'
-            });
+            const requested = interaction.options.getInteger('page') || 1;
+            const result = await loadLeaderboard(pb, interaction.guild, requested, interaction.user.id);
 
-            if (levelData.totalItems === 0) {
-                return interaction.editReply('No one has earned XP in this server yet.');
+            if (!result) {
+                const card = statusCard('info', 'Nobody has earned XP yet', 'Be the first — start chatting to climb the leaderboard!');
+                return interaction.editReply({ components: [card], flags: CV2 });
             }
 
-            // Build leaderboard
-            let description = '';
-            for (let i = 0; i < levelData.items.length; i++) {
-                const user = levelData.items[i];
-                const rank = (page - 1) * perPage + i + 1;
-                const level = calculateLevelFromXp(user.xp);
-
-                try {
-                    // Try to fetch username
-                    const member = await interaction.guild.members.fetch(user.user_id);
-                    description += `**${rank}.** ${member.toString()} - Level ${level} (${user.xp} XP)\n`;
-                } catch {
-                    // User may have left the server
-                    description += `**${rank}.** Unknown User - Level ${level} (${user.xp} XP)\n`;
-                }
-            }
-
-            const maxPages = Math.ceil(levelData.totalItems / perPage);
-
-            const embed = new EmbedBuilder()
-                .setColor(0x4CAF50)
-                .setTitle(`${interaction.guild.name} - Level Leaderboard`)
-                .setDescription(description)
-                .setFooter({text: `Page ${page}/${maxPages} • Total Users: ${levelData.totalItems}`})
-                .setTimestamp();
-
-            await interaction.editReply({embeds: [embed]});
+            await interaction.editReply({ components: result.components, flags: CV2 });
         } catch (error) {
             console.error('Error fetching leaderboard:', error);
             await interaction.editReply('Sorry, there was an error getting the leaderboard.');
         }
+    },
+
+    /**
+     * Handle leaderboard pagination button clicks (customId: lb:prev:<page> | lb:next:<page>).
+     * Called from the interaction router in index.js. Anyone may page through.
+     * @param {import('discord.js').ButtonInteraction} interaction
+     */
+    async handlePagination(interaction) {
+        const parsed = parseLeaderboardCustomId(interaction.customId);
+        if (!parsed || !interaction.guild) return;
+
+        const targetPage = parsed.page + (parsed.direction === 'next' ? 1 : -1);
+        if (targetPage < 1) {
+            await interaction.deferUpdate().catch(() => {});
+            return;
+        }
+
+        const pb = await getPb();
+        if (!pb) {
+            await interaction.reply({
+                components: [statusCard('error', 'Bot is initializing', 'Please try again in a moment.')],
+                flags: CV2_EPHEMERAL
+            }).catch(() => {});
+            return;
+        }
+
+        try {
+            const result = await loadLeaderboard(pb, interaction.guild, targetPage, interaction.user.id);
+            if (!result) {
+                await interaction.update({
+                    components: [statusCard('info', 'Nobody has earned XP yet', 'Start chatting to appear here!')],
+                    flags: CV2
+                });
+                return;
+            }
+            await interaction.update({ components: result.components, flags: CV2 });
+        } catch (error) {
+            console.error('Error paginating leaderboard:', error);
+            await interaction.deferUpdate().catch(() => {});
+        }
     }
 };
+
+export { LEADERBOARD_BUTTON_PREFIX };

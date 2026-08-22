@@ -23,15 +23,22 @@ Everything is **multi-arch** — it runs on `linux/amd64` and `linux/arm64` (e.g
 
 ## ✨ Features
 
+### 🎨 Modern Components V2 design
+- Every bot surface — rank cards, the leaderboard, help, reaction-role panels, level-up announcements and status replies — uses Discord's **Components V2** layouts (accent-colored containers, sections, separators, thumbnails) instead of legacy embeds.
+- Shared brand palette matching the DreamingDragons dashboard (teal/cyan), with role-colored accents on role notifications.
+- XP **progress bars**, avatar thumbnails, top-3 🥇🥈🥉 medals and an always-visible "You: #rank" footer.
+
 ### 🏷️ Reaction Roles
-- **Button roles (modern):** users click a button — no reacting, no `Manage Emoji` needed.
-- **Emoji reaction roles (classic):** still fully supported for existing setups.
-- Custom embeds (title, description, color), multiple roles per message, add/remove/edit/delete, autocomplete for message IDs and emojis.
+- **Button roles (modern):** users click a button inside a single accent-colored panel — no reacting, no `Manage Emoji` needed.
+- **Emoji reaction roles (classic):** still fully supported for existing setups (also rendered as panels).
+- Custom panels (title, description, accent color), up to 25 buttons per message, add/remove/edit/delete, autocomplete for message IDs and emojis.
+- Editing or re-sending texts works for **both** the modern panel format and any legacy embed messages created before the upgrade.
 
 ### 📈 Leveling System
 - XP for chat activity with configurable rate & cooldown, non-linear level curve.
-- Automatic role rewards at configured levels, level-up notifications, leaderboard.
+- Automatic role rewards at configured levels, rich level-up cards, paginated leaderboard (`◀ Previous · Page n/m · Next ▶`).
 - Admin tools: setup, rewards, reset, enable/disable, sync, migrate existing roles, set level.
+- `/level` shows an accent-colored rank card with avatar, rank, progress bar and XP-to-next-level.
 
 ### 🛠️ Admin dashboard
 - Private (PocketBase superuser login — no public sign-up).
@@ -211,7 +218,7 @@ official `arm64` variants. All three are verified to build for `linux/amd64` and
 | `/help` | List all available commands. |
 | `/ping` | Check the bot is responsive. |
 | `/level [user]` | Show your (or another member's) level, XP and rank. |
-| `/levels [page]` | Server XP leaderboard. |
+| `/levels [page]` | Paginated server XP leaderboard. |
 | `/reactionrole` | Admin: `setup`, `add`, `list`, `edit`, `remove`, `delete` reaction roles. |
 | `/leveladmin` | Admin: `setup`, `setreward`, `removereward`, `resetuser`, `enable`, `disable`, `sync`, `migrateroles`, `setlevel`. |
 
@@ -232,7 +239,8 @@ cp .env.example .env          # set POCKETBASE_URL to your PB instance,
 npm run deploy                # register slash commands
 npm run dev                   # start with auto-reload (nodemon); the internal API
                               # listens on 127.0.0.1:${BOT_API_PORT:-8787}
-npm test                      # run the leveling unit tests (node --test)
+npm test                      # run the unit tests (node --test): leveling math,
+                              # recovery planner, CV2 UI builders, command contracts
 
 # Admin dashboard (share the SAME INTERNAL_API_SECRET as the bot; point BOT_API_URL at it)
 cd web
@@ -252,9 +260,9 @@ dd-bot/
 ├─ deploy-commands.js     # registers slash commands (guild or global)
 ├─ commands/              # slash commands (admin/, fun/, utility/)
 ├─ api/                   # bot's internal HTTP API for the dashboard (names + actions)
-├─ utils/                 # pocketbase, leveling, reactionroles, level/reaction services
+├─ utils/                 # pocketbase, leveling, reactionroles, ui (Components V2 kit), levelui
 ├─ init/                  # boot-time reaction-role message caching
-├─ test/                  # node --test unit tests (leveling/recovery)
+├─ test/                  # node --test unit tests (leveling, UI builders, command contracts)
 ├─ pb_migrations/         # PocketBase schema (auto-applied)
 ├─ pocketbase/            # PocketBase Dockerfile + entrypoint
 ├─ web/                   # SvelteKit 5 admin dashboard

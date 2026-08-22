@@ -1,4 +1,4 @@
-import {SlashCommandBuilder, PermissionsBitField, EmbedBuilder, MessageFlags} from 'discord.js';
+import {SlashCommandBuilder, PermissionsBitField, MessageFlags} from 'discord.js';
 import {invalidateLevelSettingsCache} from '../../utils/leveling.js';
 import {
     recoverGuildXp,
@@ -6,6 +6,7 @@ import {
     setUserLevel,
     resetUser
 } from '../../utils/levelservice.js';
+import {replyError, replySuccess} from '../../utils/replies.js';
 import {getPb} from "../../utils/pocketbase.js";
 
 export default {
@@ -126,7 +127,7 @@ export default {
                 await handleSetLevel(interaction, pb);
                 break;
             default:
-                await interaction.reply({content: 'Unknown subcommand', flags: MessageFlags.Ephemeral});
+                await replyError(interaction, 'Unknown subcommand.');
         }
     }
 };
@@ -164,14 +165,15 @@ async function handleSetup(interaction, pb) {
 
         invalidateLevelSettingsCache(interaction.guildId);
 
-        await interaction.editReply(`✅ Leveling system configured successfully:
-• Level-up notifications will be sent to ${notificationChannel}
-• Base XP per message: ${xpPerMessage} (varies ±25%)
-• XP cooldown: ${xpCooldown} seconds`);
+        await replySuccess(interaction,
+            'Leveling system configured successfully.\n' +
+            `-# Level-up notifications → ${notificationChannel}\n` +
+            `-# Base XP per message: ${xpPerMessage} (varies ±25%)\n` +
+            `-# XP cooldown: ${xpCooldown} seconds`);
 
     } catch (error) {
         console.error('Error setting up level system:', error);
-        await interaction.editReply('❌ Failed to set up the leveling system.');
+        await replyError(interaction, 'Failed to set up the leveling system.');
     }
 }
 
@@ -183,7 +185,7 @@ async function handleSetReward(interaction, pb) {
 
     // Check if role is manageable by the bot
     if (role.managed || role.position >= interaction.guild.members.me.roles.highest.position) {
-        return interaction.editReply('❌ I cannot assign this role. It may be managed by an integration or higher than my highest role.');
+        return replyError(interaction, 'I cannot assign this role. It may be managed by an integration or higher than my highest role.');
     }
 
     try {
@@ -206,11 +208,11 @@ async function handleSetReward(interaction, pb) {
             });
         }
 
-        await interaction.editReply(`✅ Role reward set: ${role} will be awarded at level ${level}`);
+        await replySuccess(interaction, `Role reward set: ${role} will be awarded at level ${level}.`);
 
     } catch (error) {
         console.error('Error setting level reward:', error);
-        await interaction.editReply('❌ Failed to set level reward.');
+        await replyError(interaction, 'Failed to set level reward.');
     }
 }
 
@@ -226,17 +228,17 @@ async function handleRemoveReward(interaction, pb) {
         const existingReward = await pb.collection('level_rewards').getList(1, 1, {filter});
 
         if (existingReward.totalItems === 0) {
-            return interaction.editReply(`❌ No level reward found for the role ${role.name}.`);
+            return replyError(interaction, `No level reward found for the role ${role.name}.`);
         }
 
         // Delete the reward
         await pb.collection('level_rewards').delete(existingReward.items[0].id);
 
-        await interaction.editReply(`✅ Level reward removed for role ${role.name}`);
+        await replySuccess(interaction, `Level reward removed for role ${role.name}.`);
 
     } catch (error) {
         console.error('Error removing level reward:', error);
-        await interaction.editReply('❌ Failed to remove level reward.');
+        await replyError(interaction, 'Failed to remove level reward.');
     }
 }
 
@@ -248,12 +250,12 @@ async function handleResetUser(interaction, pb) {
     try {
         const { deleted } = await resetUser(pb, interaction.guildId, user.id);
         if (!deleted) {
-            return interaction.editReply(`❌ ${user.username} doesn't have any level data to reset.`);
+            return replyError(interaction, `${user.username} doesn't have any level data to reset.`);
         }
-        await interaction.editReply(`✅ Level data reset for ${user.username}`);
+        await replySuccess(interaction, `Level data reset for ${user.username}.`);
     } catch (error) {
         console.error('Error resetting user level:', error);
-        await interaction.editReply('❌ Failed to reset user level data.');
+        await replyError(interaction, 'Failed to reset user level data.');
     }
 }
 
@@ -266,7 +268,7 @@ async function handleToggle(interaction, pb, enable) {
         const existingSettings = await pb.collection('level_settings').getList(1, 1, {filter});
 
         if (existingSettings.totalItems === 0) {
-            return interaction.editReply('❌ Please use `/leveladmin setup` first to configure the leveling system.');
+            return replyError(interaction, 'Please use `/leveladmin setup` first to configure the leveling system.');
         }
 
         // Update enabled status
@@ -276,11 +278,11 @@ async function handleToggle(interaction, pb, enable) {
 
         invalidateLevelSettingsCache(interaction.guildId);
 
-        await interaction.editReply(`✅ Leveling system ${enable ? 'enabled' : 'disabled'}.`);
+        await replySuccess(interaction, `Leveling system ${enable ? 'enabled' : 'disabled'}.`);
 
     } catch (error) {
         console.error(`Error ${enable ? 'enabling' : 'disabling'} level system:`, error);
-        await interaction.editReply(`❌ Failed to ${enable ? 'enable' : 'disable'} the leveling system.`);
+        await replyError(interaction, `Failed to ${enable ? 'enable' : 'disable'} the leveling system.`);
     }
 }
 
@@ -291,16 +293,17 @@ async function handleSync(interaction, pb) {
         const { total, success, failed } = await syncGuildRoles(pb, interaction.client, interaction.guildId);
 
         if (total === 0) {
-            return interaction.editReply('❌ No level data found for any users.');
+            return replyError(interaction, 'No level data found for any users.');
         }
 
-        await interaction.editReply(`✅ Role sync complete:
-• Successfully synced: ${success} users
-• Failed to sync: ${failed} users`);
+        await replySuccess(interaction,
+            'Role sync complete.\n' +
+            `-# Successfully synced: ${success} users\n` +
+            `-# Failed to sync: ${failed} users`);
 
     } catch (error) {
         console.error('Error syncing roles:', error);
-        await interaction.editReply('❌ Failed to sync user roles.');
+        await replyError(interaction, 'Failed to sync user roles.');
     }
 }
 
@@ -314,19 +317,19 @@ async function handleMigrateRoles(interaction, pb) {
         );
 
         if (changes.length === 0 && updated === 0) {
-            return interaction.editReply(
-                '❌ No members needed XP recovery. Ensure level rewards are configured and members hold those roles.'
-            );
+            return replyError(interaction,
+                'No members needed XP recovery. Ensure level rewards are configured and members hold those roles.');
         }
 
-        await interaction.editReply(`✅ Role migration complete:
-• Users updated: ${updated}
-• Users skipped: ${skipped} (bots, no level roles, or already at/above the role level)
-• Errors: ${errors}`);
+        await replySuccess(interaction,
+            'Role migration complete.\n' +
+            `-# Users updated: ${updated}\n` +
+            `-# Users skipped: ${skipped} (bots, no level roles, or already at/above the role level)\n` +
+            `-# Errors: ${errors}`);
 
     } catch (error) {
         console.error('Error migrating roles to XP:', error);
-        await interaction.editReply('❌ Failed to migrate roles to XP.');
+        await replyError(interaction, 'Failed to migrate roles to XP.');
     }
 }
 
@@ -338,9 +341,9 @@ async function handleSetLevel(interaction, pb) {
 
     try {
         const { xp } = await setUserLevel(pb, interaction.client, interaction.guildId, targetUser.id, newLevel);
-        await interaction.editReply(`✅ ${targetUser.username}'s level has been set to ${newLevel} with ${xp} XP.`);
+        await replySuccess(interaction, `${targetUser.username}'s level has been set to ${newLevel} with ${xp} XP.`);
     } catch (error) {
         console.error('Error setting user level:', error);
-        await interaction.editReply('❌ Failed to set user level.');
+        await replyError(interaction, 'Failed to set user level.');
     }
 }

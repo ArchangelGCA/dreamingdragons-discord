@@ -5,9 +5,13 @@
  */
 import { PermissionsBitField } from 'discord.js';
 import { parseColorHex } from './utils.js';
+import { CV2, Colors } from './ui.js';
 import {
     getEmojiIdentifier,
+    buildButtonRows,
+    buildReactionRoleContainer,
     buildReactionRoleEmbed,
+    extractReactionPanelTexts,
     refreshButtonMessage
 } from './reactionroles.js';
 
@@ -58,12 +62,12 @@ export async function createMessage(client, pb, guildId, { channelId, embed, ent
         throw new ReactionServiceError('Target channel was not found in this server.');
     }
 
-    // Permission check.
+    // Permission check. CV2 panels aren't embeds, so Embed Links isn't needed.
     const perms = channel.permissionsFor(guild.members.me);
-    const need = [PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.EmbedLinks];
+    const need = [PermissionsBitField.Flags.SendMessages];
     if (!useButton) need.push(PermissionsBitField.Flags.AddReactions);
     if (!perms || !perms.has(need)) {
-        throw new ReactionServiceError(`I lack permissions in that channel (need Send Messages, Embed Links${useButton ? '' : ', Add Reactions'}).`);
+        throw new ReactionServiceError(`I lack permissions in that channel (need Send Messages${useButton ? '' : ', Add Reactions'}).`);
     }
 
     // Validate every entry up-front so we don't post a half-configured message.
@@ -76,13 +80,16 @@ export async function createMessage(client, pb, guildId, { channelId, embed, ent
         prepared.push({ role, emojiId, label: e.label || '', style: e.style || 'secondary' });
     }
 
-    const builtEmbed = buildReactionRoleEmbed({
-        description: embed?.description,
+    const panel = buildReactionRoleContainer({
         title: embed?.title,
-        color: embed?.color,
-        roleColor: prepared[0].role.color || undefined
+        description: embed?.description,
+        accentColor: parseColorHex(embed?.color) ?? (prepared[0].role.color || undefined) ?? Colors.BRAND
     });
-    const message = await channel.send({ embeds: [builtEmbed] });
+    const message = await channel.send({
+        components: [panel],
+        flags: CV2,
+        allowedMentions: { parse: [] }
+    });
 
     for (const p of prepared) {
         await pb.collection('reaction_roles').create({
@@ -119,9 +126,34 @@ async function fetchGroupMessage(client, pb, guildId, messageId) {
     return { channelId, channel, message, isButton: first.items[0].component_type === 'button' };
 }
 
-/** Update the embed (title/description/color) of an existing message. */
+/**
+ * Update the text (title/description/color) of an existing message.
+ *
+ * CV2 panels get their container rebuilt with the patch applied; legacy
+ * embed-based panels stay embeds (edited in place).
+ */
 export async function updateEmbed(client, pb, guildId, messageId, embed) {
     const { message } = await fetchGroupMessage(client, pb, guildId, messageId);
+
+    const panel = extractReactionPanelTexts(message);
+    if (panel) {
+        const title = embed?.title !== undefined ? embed.title : panel.title;
+        const description = embed?.description !== undefined ? embed.description : panel.description;
+        const accentColor = parseColorHex(embed?.color) ?? panel.accentColor ?? Colors.BRAND;
+
+        // Rebuild buttons from the DB so the panel stays in sync.
+        const records = await pb.collection('reaction_roles').getFullList({
+            filter: pb.filter('guild_id = {:g} && message_id = {:m} && component_type = {:t}',
+                { g: guildId, m: messageId, t: 'button' }),
+            sort: 'created'
+        });
+        const rows = buildButtonRows(records, message.guild);
+
+        const next = buildReactionRoleContainer({ title, description, accentColor, rows });
+        await message.edit({ components: [next], flags: CV2 });
+        return { messageId };
+    }
+
     const current = message.embeds[0];
     const next = buildReactionRoleEmbed({
         description: embed?.description ?? current?.description ?? '',
@@ -340,10 +372,10 @@ export async function resendMessage(client, pb, guildId, messageId, { channelId,
     }
 
     const perms = channel.permissionsFor(guild.members.me);
-    const need = [PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.EmbedLinks];
+    const need = [PermissionsBitField.Flags.SendMessages];
     if (!useButton) need.push(PermissionsBitField.Flags.AddReactions);
     if (!perms || !perms.has(need)) {
-        throw new ReactionServiceError(`I lack permissions in that channel (need Send Messages, Embed Links${useButton ? '' : ', Add Reactions'}).`);
+        throw new ReactionServiceError(`I lack permissions in that channel (need Send Messages${useButton ? '' : ', Add Reactions'}).`);
     }
 
     // Remove the old copy if it somehow still exists, to avoid a stale duplicate.
@@ -356,13 +388,16 @@ export async function resendMessage(client, pb, guildId, messageId, { channelId,
     }
 
     const roleColor = guild.roles.cache.get(records[0].role_id)?.color || undefined;
-    const builtEmbed = buildReactionRoleEmbed({
-        description: embed?.description || 'Select your roles below:',
+    const panel = buildReactionRoleContainer({
         title: embed?.title,
-        color: embed?.color,
-        roleColor
+        description: embed?.description || 'Select your roles below:',
+        accentColor: parseColorHex(embed?.color) ?? roleColor ?? Colors.BRAND
     });
-    const message = await channel.send({ embeds: [builtEmbed] });
+    const message = await channel.send({
+        components: [panel],
+        flags: CV2,
+        allowedMentions: { parse: [] }
+    });
 
     for (const r of records) {
         await pb.collection('reaction_roles').update(r.id, {
@@ -412,7 +447,9 @@ export async function listBotMessages(client, pb, guildId, channelId, { limit = 
 
     const messages = botMsgs.map((m) => {
         const embed = m.embeds?.[0];
-        const preview = (embed?.title || embed?.description || m.content || '(no text content)')
+        const panel = extractReactionPanelTexts(m);
+        const panelText = panel ? [panel.title, panel.description].filter(Boolean).join(' — ') : '';
+        const preview = (embed?.title || embed?.description || panelText || m.content || '(no text content)')
             .replace(/\s+/g, ' ')
             .slice(0, 90);
         return {

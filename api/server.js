@@ -36,6 +36,7 @@ import {
     listBotMessages,
     ReactionServiceError
 } from '../utils/reactionservice.js';
+import { extractReactionPanelTexts } from '../utils/reactionroles.js';
 
 const MAX_BODY_BYTES = 256 * 1024;
 
@@ -250,13 +251,22 @@ async function reactionMessagesStatus(client, pb, guildId, messageIds) {
                 const channel = await fetchChannel(channelId);
                 const message = channel ? await channel.messages.fetch(id).catch(() => null) : null;
                 if (message) {
+                    // CV2 panels keep their texts in the container; legacy ones in embeds.
+                    const panel = extractReactionPanelTexts(message);
                     const embed = message.embeds?.[0];
-                    status = {
-                        exists: true,
-                        title: embed?.title ?? '',
-                        description: embed?.description ?? '',
-                        color: typeof embed?.color === 'number' ? toHexColor(embed.color) : ''
-                    };
+                    status = panel
+                        ? {
+                            exists: true,
+                            title: panel.title,
+                            description: panel.description,
+                            color: panel.accentColor != null ? toHexColor(panel.accentColor) : ''
+                        }
+                        : {
+                            exists: true,
+                            title: embed?.title ?? '',
+                            description: embed?.description ?? '',
+                            color: typeof embed?.color === 'number' ? toHexColor(embed.color) : ''
+                        };
                 }
             }
             statuses[id] = status;
