@@ -5,6 +5,7 @@
 	import CopyId from '$lib/components/CopyId.svelte';
 	import { formatNumber, levelProgress } from '$lib/leveling';
 	import { animateIn } from '$lib/actions/animate';
+	import { popover } from '$lib/actions/popover';
 
 	let { data } = $props();
 	const guild = $derived(data.guild);
@@ -122,7 +123,7 @@
 								</td>
 								<td class="right">
 									<div class="cluster" style="justify-content:flex-end;gap:0.4rem">
-										<details>
+										<details use:popover class="popover-fixed">
 											<summary class="btn secondary small">Set level</summary>
 											<form method="POST" action="?/setLevel" use:enhance class="card popover" style="min-width:200px">
 												<input type="hidden" name="guild_id" value={gid} />

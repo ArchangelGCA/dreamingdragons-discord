@@ -4,10 +4,12 @@
 	import Avatar from './Avatar.svelte';
 	import { formatNumber } from '$lib/leveling';
 	import type { GuildDTO } from '$lib/server/bot';
+	import { floating } from '$lib/actions/popover';
 
 	let { guilds, currentGuildId }: { guilds: GuildDTO[]; currentGuildId: string | null } = $props();
 
 	let open = $state(false);
+	let triggerEl = $state<HTMLButtonElement | null>(null);
 	const current = $derived(guilds.find((g) => g.id === currentGuildId) ?? null);
 	const redirectTo = $derived(page.url.pathname + page.url.search);
 
@@ -25,6 +27,7 @@
 		<input type="hidden" name="redirectTo" value={redirectTo} />
 
 		<button
+			bind:this={triggerEl}
 			type="button"
 			class="gs-trigger"
 			aria-haspopup="listbox"
@@ -50,6 +53,7 @@
 				class="gs-menu"
 				role="listbox"
 				tabindex="-1"
+				use:floating={{ anchor: triggerEl, open, gap: 8, align: 'left' }}
 				in:fly={{ y: -6, duration: 180, delay: 20 }}
 				out:fly={{ y: -4, duration: 140 }}
 			>

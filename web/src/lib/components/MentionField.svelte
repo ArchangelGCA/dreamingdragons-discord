@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { RoleDTO, ChannelDTO } from '$lib/server/bot';
 	import { safeColor } from '$lib/format';
+	import { floating } from '$lib/actions/popover';
 
 	let {
 		name,
@@ -173,7 +174,7 @@
 		></textarea>
 
 		{#if trigger && suggestions.length > 0}
-			<ul class="ac" role="listbox">
+			<ul class="ac" role="listbox" use:floating={{ anchor: ta, open: !!trigger, gap: 6, align: 'left' }}>
 				{#each suggestions as s, i (s.kind + s.id)}
 					<li>
 						<button

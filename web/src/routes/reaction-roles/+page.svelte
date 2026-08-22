@@ -10,6 +10,7 @@
 	import MentionField from '$lib/components/MentionField.svelte';
 	import type { RoleDTO } from '$lib/server/bot';
 	import { animateIn } from '$lib/actions/animate';
+	import { popover } from '$lib/actions/popover';
 
 	let { data } = $props();
 
@@ -322,7 +323,7 @@
 									<span>Message</span><CopyId value={g.message_id} short />
 								</div>
 							</div>
-							<details class="del">
+							<details class="del popover-fixed" use:popover>
 								<summary class="btn danger secondary small">Delete…</summary>
 								<form
 									method="POST"
@@ -354,7 +355,7 @@
 									⚠️ This message no longer exists on Discord. Re-post it to restore its {g.type} roles{#if g.type === 'reaction'}
 										(emoji reactions){/if}. The embed text isn't stored, so set it below.
 								</div>
-								<details>
+								<details use:popover class="popover-fixed">
 									<summary class="btn small">Re-post message…</summary>
 									<form
 										method="POST"
@@ -417,7 +418,7 @@
 											<td><RoleBadge name={role?.name ?? null} color={role?.color ?? null} id={e.role_id} /></td>
 											<td class="right">
 												<div class="cluster" style="justify-content:flex-end;gap:0.4rem">
-													<details>
+													<details use:popover class="popover-fixed">
 														<summary class="btn secondary small">Edit</summary>
 														<form
 															method="POST"
@@ -458,7 +459,7 @@
 						</div>
 
 						<div class="group-actions">
-							<details class="grow">
+							<details class="grow popover-fixed" use:popover>
 								<summary class="btn ghost small">＋ Add role</summary>
 								<form
 									method="POST"
@@ -485,7 +486,7 @@
 									</button>
 								</form>
 							</details>
-							<details class="grow">
+							<details class="grow popover-fixed" use:popover>
 								<summary class="btn ghost small">✎ Edit message text</summary>
 								<form
 									method="POST"

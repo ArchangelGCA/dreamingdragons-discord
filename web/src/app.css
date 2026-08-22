@@ -946,6 +946,10 @@ details:not(.drop-left) .popover {
 	right: 0;
 }
 
+details.popover-fixed .popover {
+	margin-top: 0;
+}
+
 /* ── Responsive ────────────────────────────────────────── */
 @media (max-width: 860px) {
 	.app {
