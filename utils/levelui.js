@@ -9,7 +9,7 @@ import { Colors, container, formatInt, progressBar, separator, text, thumbnailSe
 import { calculateLevelFromXp, calculateXpForLevel, calculateXpToNextLevel } from './leveling.js';
 import { cumulativeXpForLevel } from './levelservice.js';
 
-/** Custom-id prefix for leaderboard pagination buttons: lb:<prev|next>:<page>. */
+/** Custom-id prefix for leaderboard pagination buttons: lb:<prev|next|me>:<page>. */
 export const LEADERBOARD_BUTTON_PREFIX = 'lb';
 
 export const LEADERBOARD_PAGE_SIZE = 10;
@@ -26,8 +26,9 @@ export const LEADERBOARD_PAGE_SIZE = 10;
  * @param {number} p.xp total XP
  * @param {number} [p.rank] 1-based server rank; 0/undefined = unknown
  * @param {boolean} [p.isSelf]
+ * @param {string} [p.profileUrl] when set, a "View stats online" link button is added
  */
-export function buildLevelCard({ displayName, avatarUrl, accentColor, level, xp, rank, isSelf }) {
+export function buildLevelCard({ displayName, avatarUrl, accentColor, level, xp, rank, isSelf, profileUrl }) {
     const xpIntoLevel = xp - cumulativeXpForLevel(level);
     const xpForThisLevel = calculateXpForLevel(level + 1);
     const xpToNext = calculateXpToNextLevel(xp);
@@ -43,13 +44,27 @@ export function buildLevelCard({ displayName, avatarUrl, accentColor, level, xp,
     statBits.push(`**${formatInt(xp)}** XP`);
     headerLines.push(statBits.join('  ·  '));
 
-    return container(
-        accentColor || Colors.BRAND,
+    const children = [
         thumbnailSection(headerLines, avatarUrl),
         separator({ divider: false }),
         text(`${progressBar(ratio)}  **${percent}%**`),
         text(`-# ${formatInt(xpToNext)} XP to Level ${formatInt(level + 1)}${isSelf ? ' — keep chatting!' : ''}`)
-    );
+    ];
+
+    if (profileUrl) {
+        children.push(
+            separator({ divider: false }),
+            new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setLabel('View stats online')
+                    .setStyle(ButtonStyle.Link)
+                    .setURL(profileUrl)
+                    .setEmoji('🔗')
+            )
+        );
+    }
+
+    return container(accentColor || Colors.BRAND, ...children);
 }
 
 const MEDALS = { 1: '🥇', 2: '🥈', 3: '🥉' };
@@ -70,16 +85,17 @@ function leaderboardLine({ rank, userId, level, xp }) {
  * @param {number} p.page current page (1-based)
  * @param {number} p.maxPages
  * @param {number} p.total total ranked members
- * @param {{rank:number,level:number,xp:number}|null} [p.viewer] invoker's standing when off-page
+ * @param {{rank:number,level:number,xp:number}|null} [p.viewer] invoker's standing when ranked
+ * @param {boolean} [p.viewerOnPage] the invoker appears on the current page
  */
-export function buildLeaderboardCard({ guildName, guildIcon, entries, page, maxPages, total, viewer }) {
+export function buildLeaderboardCard({ guildName, guildIcon, entries, page, maxPages, total, viewer, viewerOnPage }) {
     const children = [
         thumbnailSection([`## 🏆 ${guildName} Leaderboard`], guildIcon ?? null),
         separator(),
         text(entries.map(leaderboardLine).join('\n'))
     ];
 
-    if (viewer) {
+    if (viewer && !viewerOnPage) {
         children.push(
             separator({ divider: false }),
             text(`-# You: #${formatInt(viewer.rank)}  ·  Lv ${formatInt(viewer.level)}  ·  ${formatInt(viewer.xp)} XP`)
@@ -94,10 +110,11 @@ export function buildLeaderboardCard({ guildName, guildIcon, entries, page, maxP
             .setStyle(ButtonStyle.Secondary)
             .setDisabled(page <= 1),
         new ButtonBuilder()
-            .setCustomId(`${LEADERBOARD_BUTTON_PREFIX}:page:${page}:${maxPages}`)
-            .setLabel(`Page ${page} / ${maxPages}`)
+            .setCustomId(`${LEADERBOARD_BUTTON_PREFIX}:me:${page}`)
+            .setLabel('Me')
+            .setEmoji('📍')
             .setStyle(ButtonStyle.Secondary)
-            .setDisabled(true),
+            .setDisabled(!viewer || viewerOnPage === true),
         new ButtonBuilder()
             .setCustomId(`${LEADERBOARD_BUTTON_PREFIX}:next:${page}`)
             .setLabel('Next')
@@ -108,21 +125,44 @@ export function buildLeaderboardCard({ guildName, guildIcon, entries, page, maxP
 
     children.push(
         separator(),
-        text(`-# ${formatInt(total)} ranked member${total === 1 ? '' : 's'}`),
+        text(`-# ${formatInt(total)} ranked member${total === 1 ? '' : 's'}  ·  Page ${page} / ${maxPages}`),
         nav
     );
 
     return container(Colors.BRAND, ...children);
 }
 
-/** Parse a leaderboard pagination custom id: lb:<prev|next>:<page> -> target page. */
+/** 1-based leaderboard page a given rank lands on. */
+export function pageForRank(rank, pageSize = LEADERBOARD_PAGE_SIZE) {
+    if (!Number.isInteger(rank) || rank < 1) return 1;
+    return Math.ceil(rank / pageSize);
+}
+
+/** Parse a leaderboard custom id: lb:prev|next|me:<page>. */
 export function parseLeaderboardCustomId(customId) {
     const parts = String(customId || '').split(':');
     if (parts[0] !== LEADERBOARD_BUTTON_PREFIX) return null;
-    if (parts[1] !== 'prev' && parts[1] !== 'next') return null;
     const page = Number.parseInt(parts[2], 10);
     if (!Number.isInteger(page)) return null;
-    return { direction: parts[1], page };
+    if (parts[1] === 'prev' || parts[1] === 'next') return { kind: 'turn', direction: parts[1], page };
+    if (parts[1] === 'me') return { kind: 'me', page };
+    return null;
+}
+
+/**
+ * The standing of a single user in a guild: rank, derived level and XP.
+ * `null` when the user has no level record.
+ */
+export async function findViewerStanding(pb, guildId, userId) {
+    const viewerRes = await pb.collection('user_levels').getList(1, 1, {
+        filter: pb.filter('guild_id = {:g} && user_id = {:u}', { g: guildId, u: userId })
+    });
+    if (viewerRes.totalItems === 0) return null;
+    const xp = viewerRes.items[0].xp;
+    const ahead = await pb.collection('user_levels').getList(1, 1, {
+        filter: pb.filter('guild_id = {:g} && xp > {:xp}', { g: guildId, xp })
+    });
+    return { rank: ahead.totalItems + 1, level: calculateLevelFromXp(xp), xp };
 }
 
 /**
@@ -160,23 +200,13 @@ export async function loadLeaderboard(pb, guild, page, viewerId) {
         };
     }));
 
-    // Locates the viewer even when they're not on the requested page.
+    // Always resolve the viewer's standing — drives the footer AND the "Me" button.
     let viewer = null;
+    let viewerOnPage = false;
     if (viewerId) {
         try {
-            const onPage = entries.find((e) => e.userId === viewerId);
-            if (!onPage) {
-                const viewerRes = await pb.collection('user_levels').getList(1, 1, {
-                    filter: pb.filter('guild_id = {:g} && user_id = {:u}', { g: guild.id, u: viewerId })
-                });
-                if (viewerRes.totalItems > 0) {
-                    const vxp = viewerRes.items[0].xp;
-                    const ahead = await pb.collection('user_levels').getList(1, 1, {
-                        filter: pb.filter('guild_id = {:g} && xp > {:xp}', { g: guild.id, xp: vxp })
-                    });
-                    viewer = { rank: ahead.totalItems + 1, level: calculateLevelFromXp(vxp), xp: vxp };
-                }
-            }
+            viewerOnPage = entries.some((e) => e.userId === viewerId);
+            viewer = await findViewerStanding(pb, guild.id, viewerId);
         } catch (error) {
             console.error('Error resolving viewer rank for leaderboard:', error);
         }
@@ -189,7 +219,8 @@ export async function loadLeaderboard(pb, guild, page, viewerId) {
         page: safePage,
         maxPages,
         total,
-        viewer
+        viewer,
+        viewerOnPage
     });
 
     return { components: [card], page: safePage, maxPages, total };

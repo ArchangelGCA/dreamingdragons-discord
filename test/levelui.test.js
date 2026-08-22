@@ -5,6 +5,7 @@ import {
     LEADERBOARD_BUTTON_PREFIX,
     buildLeaderboardCard,
     buildLevelCard,
+    pageForRank,
     parseLeaderboardCustomId
 } from '../utils/levelui.js';
 import { Colors } from '../utils/ui.js';
@@ -71,7 +72,8 @@ test('buildLeaderboardCard renders medals, pagination and the viewer line', () =
         page: 2,
         maxPages: 4,
         total: 40,
-        viewer: { rank: 21, level: 3, xp: 999 }
+        viewer: { rank: 21, level: 3, xp: 999 },
+        viewerOnPage: false
     }).toJSON();
 
     const t = texts(json);
@@ -79,16 +81,36 @@ test('buildLeaderboardCard renders medals, pagination and the viewer line', () =
     const listing = t.find((c) => c.includes('🥇'));
     assert.ok(listing.includes('<@u1>') && listing.includes('🥈') && listing.includes('🥉'));
     assert.ok(listing.includes('**4.**'));
-    assert.ok(t.some((c) => c.includes('You: #21')), 'viewer footer');
+    assert.ok(t.some((c) => c.includes('You: #21')), 'viewer footer when off-page');
+    assert.ok(t.some((c) => c.includes('Page 2 / 4')), 'page summary in footer text');
 
-    // Navigation row: prev enabled (page 2), next enabled (2 < 4).
+    // Navigation row: [prev][me][next].
     const row = json.components.find((c) => c.type === ComponentType.ActionRow);
-    const [prev, pageBtn, next] = row.components;
+    const [prev, me, next] = row.components;
+    assert.equal(row.components.length, 3);
     assert.equal(prev.custom_id, `${LEADERBOARD_BUTTON_PREFIX}:prev:2`);
     assert.equal(prev.disabled, false);
-    assert.equal(pageBtn.disabled, true);
-    assert.match(pageBtn.label, /Page 2 \/ 4/);
+    assert.equal(me.custom_id, `${LEADERBOARD_BUTTON_PREFIX}:me:2`);
+    assert.equal(me.disabled, false);
     assert.equal(next.custom_id, `${LEADERBOARD_BUTTON_PREFIX}:next:2`);
+});
+
+test('leaderboard "Me" button disables when the viewer is on the page or unranked', () => {
+    const entries = [{ rank: 1, userId: 'u1', level: 5, xp: 2500 }];
+    const onPage = buildLeaderboardCard({
+        entries, page: 1, maxPages: 1, total: 1,
+        viewer: { rank: 1, level: 5, xp: 2500 }, viewerOnPage: true
+    }).toJSON();
+    const onPageRow = onPage.components.find((c) => c.type === ComponentType.ActionRow);
+    assert.equal(onPageRow.components[1].disabled, true, 'Me disabled while already on my page');
+    // No redundant footer line either.
+    assert.ok(!texts(onPage).some((c) => c.includes('You: #1')));
+
+    const unranked = buildLeaderboardCard({
+        entries, page: 1, maxPages: 1, total: 1, viewer: null, viewerOnPage: false
+    }).toJSON();
+    const unrankedRow = unranked.components.find((c) => c.type === ComponentType.ActionRow);
+    assert.equal(unrankedRow.components[1].disabled, true, 'Me disabled when unranked');
 });
 
 test('leaderboard pagination disables the right buttons at the bounds', () => {
@@ -104,10 +126,39 @@ test('leaderboard pagination disables the right buttons at the bounds', () => {
     assert.equal(lastRow.components[2].disabled, true, 'next disabled on last page');
 });
 
-test('parseLeaderboardCustomId parses prev/next and rejects other ids', () => {
-    assert.deepEqual(parseLeaderboardCustomId(`${LEADERBOARD_BUTTON_PREFIX}:prev:3`), { direction: 'prev', page: 3 });
-    assert.deepEqual(parseLeaderboardCustomId(`${LEADERBOARD_BUTTON_PREFIX}:next:10`), { direction: 'next', page: 10 });
-    assert.equal(parseLeaderboardCustomId(`${LEADERBOARD_BUTTON_PREFIX}:page:2:4`), null);
+test('parseLeaderboardCustomId parses prev/next/me and rejects other ids', () => {
+    assert.deepEqual(parseLeaderboardCustomId(`${LEADERBOARD_BUTTON_PREFIX}:prev:3`), { kind: 'turn', direction: 'prev', page: 3 });
+    assert.deepEqual(parseLeaderboardCustomId(`${LEADERBOARD_BUTTON_PREFIX}:next:10`), { kind: 'turn', direction: 'next', page: 10 });
+    assert.deepEqual(parseLeaderboardCustomId(`${LEADERBOARD_BUTTON_PREFIX}:me:2`), { kind: 'me', page: 2 });
+    assert.equal(parseLeaderboardCustomId(`${LEADERBOARD_BUTTON_PREFIX}:page:2`), null);
     assert.equal(parseLeaderboardCustomId('rr:abc123'), null);
     assert.equal(parseLeaderboardCustomId(`${LEADERBOARD_BUTTON_PREFIX}:prev:nope`), null);
+});
+
+test('pageForRank maps ranks to their 1-based page', () => {
+    assert.equal(pageForRank(1), 1);
+    assert.equal(pageForRank(10), 1);
+    assert.equal(pageForRank(11), 2);
+    assert.equal(pageForRank(101), 11);
+    assert.equal(pageForRank(0), 1);
+    assert.equal(pageForRank(-5), 1);
+    assert.equal(pageForRank(1.5), 1);
+});
+
+test('buildLevelCard adds an optional "view stats online" link button', () => {
+    const json = buildLevelCard({
+        displayName: 'Gabry',
+        avatarUrl: 'https://cdn.discordapp.com/avatars/1/a.png',
+        level: 2,
+        xp: 400,
+        rank: 1,
+        profileUrl: 'https://example.com/u/123?g=456'
+    }).toJSON();
+    const row = json.components.find((c) => c.type === ComponentType.ActionRow);
+    assert.ok(row, 'action row present');
+    assert.equal(row.components[0].style, 5, 'link button style');
+    assert.equal(row.components[0].url, 'https://example.com/u/123?g=456');
+
+    const without = buildLevelCard({ displayName: 'Gabry', level: 2, xp: 400 }).toJSON();
+    assert.ok(!without.components.some((c) => c.type === ComponentType.ActionRow), 'no row without URL');
 });

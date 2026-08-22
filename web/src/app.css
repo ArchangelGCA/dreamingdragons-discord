@@ -876,6 +876,13 @@ input[type='checkbox'] {
 	flex: 1;
 	min-width: 140px;
 }
+/* Never let a flex child's content (long inputs, nowrap buttons) force the
+   row wider than its container — children may shrink and wrap instead. */
+.row > div > input,
+.row > div > select,
+.row > div > button {
+	min-width: 0;
+}
 .cluster {
 	display: flex;
 	gap: 0.6rem;

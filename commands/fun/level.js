@@ -44,6 +44,12 @@ export default {
             // Resolve the target's display color + avatar for the card.
             const member = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
 
+            // Optional link to the public web profile (only when PUBLIC_URL is set).
+            const publicBase = (process.env.PUBLIC_URL || '').replace(/\/+$/, '');
+            const profileUrl = publicBase
+                ? `${publicBase}/u/${targetUser.id}?g=${interaction.guildId}`
+                : undefined;
+
             const card = buildLevelCard({
                 displayName: member?.displayName ?? targetUser.globalName ?? targetUser.username,
                 avatarUrl: targetUser.displayAvatarURL({ size: 128 }),
@@ -51,7 +57,8 @@ export default {
                 level,
                 xp: user.xp,
                 rank,
-                isSelf: isOwnLevel
+                isSelf: isOwnLevel,
+                profileUrl
             });
 
             await interaction.editReply({ components: [card], flags: CV2 });

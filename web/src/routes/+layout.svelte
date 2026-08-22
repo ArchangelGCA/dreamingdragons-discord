@@ -11,7 +11,7 @@
 	let { data, children } = $props();
 
 	const nav = [
-		{ href: '/', label: 'Dashboard', icon: '📊' },
+		{ href: '/dashboard', label: 'Dashboard', icon: '📊' },
 		{ href: '/leveling', label: 'Leveling', icon: '📈' },
 		{ href: '/reaction-roles', label: 'Reaction Roles', icon: '🏷️' },
 		{ href: '/users', label: 'Users', icon: '👥' }
@@ -30,6 +30,10 @@
 		if (typeof f.success === 'string') pushToast('success', f.success);
 		else if (typeof f.error === 'string') pushToast('error', f.error);
 	});
+
+	// Public pages (under the (public) route group) use their own shell — even
+	// for logged-in admins, so the public site looks exactly like what visitors see.
+	const isPublicRoute = $derived(page.route.id?.startsWith('/(public)') ?? false);
 </script>
 
 <svelte:head>
@@ -37,7 +41,10 @@
 	<title>dd-bot admin</title>
 </svelte:head>
 
-{#if data.admin}
+{#if isPublicRoute}
+	{@render children()}
+	<Toasts />
+{:else if data.admin}
 	<div class="app">
 		<aside class="sidebar">
 			<div class="brand">
@@ -66,6 +73,7 @@
 			<div class="spacer"></div>
 
 			<div class="sidebar-divider"></div>
+			<a class="btn ghost block" href="/">🌐 View public site</a>
 			<ThemeToggle />
 			<div class="user-chip">
 				<Avatar name={data.admin.email} seed={data.admin.email} size={26} />

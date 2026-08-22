@@ -29,3 +29,14 @@ export function safeColor(color: string | null | undefined, fallback = 'var(--te
 	if (!color) return fallback;
 	return /^#[0-9a-fA-F]{3,8}$/.test(color) ? color : fallback;
 }
+
+/**
+ * Deterministic pseudonym for a Discord user id (`Member #4821`). Used on the
+ * public pages when the bot can't resolve the real display name (bot offline),
+ * so we never fall back to exposing raw IDs or stale data.
+ */
+export function anonymize(userId: string): string {
+	let h = 0;
+	for (let i = 0; i < userId.length; i++) h = (h * 31 + userId.charCodeAt(i)) >>> 0;
+	return `Member #${String(h % 10000).padStart(4, '0')}`;
+}

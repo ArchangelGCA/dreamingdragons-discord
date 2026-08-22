@@ -36,12 +36,12 @@
 		<div class="section" use:animateIn>
 			<h2>🔍 Find a member</h2>
 			<form method="GET" class="card">
-				<div class="row">
-					<div style="flex:2">
+				<div class="search-row">
+					<div class="field">
 						<label for="q">Search by name</label>
 						<input id="q" name="q" value={data.q} placeholder="username or nickname" />
 					</div>
-					<div style="flex:0"><button class="btn">Search</button></div>
+					<div class="actions"><button class="btn">Search</button></div>
 				</div>
 			</form>
 			{#if data.search.length > 0}
@@ -157,6 +157,21 @@
 {/if}
 
 <style>
+	/* Compact 2-col search: input grows, button hugs content; stacks on small screens.
+	   Deliberately NOT the shared .row helper — its min-width:140px children could
+	   overflow the card on narrow viewports. */
+	.search-row {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		gap: 0.75rem;
+		align-items: end;
+	}
+	.search-row .field {
+		min-width: 0;
+	}
+	.search-row .actions {
+		display: flex;
+	}
 	.empty {
 		display: grid;
 		place-items: center;
@@ -180,6 +195,14 @@
 		color: var(--accent-soft);
 		font-weight: 700;
 		font-size: 0.8rem;
+	}
+	@media (max-width: 560px) {
+		.search-row {
+			grid-template-columns: 1fr;
+		}
+		.search-row .actions .btn {
+			width: 100%;
+		}
 	}
 	@media (max-width: 860px) {
 		table td:nth-child(2) {

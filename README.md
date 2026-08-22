@@ -53,6 +53,22 @@ Everything is **multi-arch** — it runs on `linux/amd64` and `linux/arm64` (e.g
 
 > The dashboard never holds the Discord token. It talks to PocketBase directly and reaches the bot only **server-side** over an internal Docker network (`http://bot:8787`, Bearer-authenticated, no host port). See `INTERNAL_API_SECRET` below.
 
+### 🌐 Public website (GDPR-friendly)
+
+The same `web` service also serves a **public, no-login section** at the site root:
+
+- **`/`** — landing page with server stats and the top-3 podium.
+- **`/leaderboard`** — public leaderboard (same data as `/levels` in Discord).
+- **`/u/<userId>`** — a member's personal stats card; `/level` in Discord links straight to it when `PUBLIC_URL` is set.
+- **`/privacy`** — a ready-made GDPR/privacy page you can adapt.
+
+Privacy by design:
+
+- **Minimal data** — only `user_id`, `xp`, `level` are exposed; profile pages show a "last active" **day only** (no timestamps, no message content). Server-side reads go through the superuser (`web/src/lib/server/public.ts`) because the collections have no public API rules.
+- **Pseudonym fallback** — names/avatars resolve via the bot bridge; if the bot is offline, entries render as `Member #xxxx` so no data beyond the ID leaves the server.
+- **Anonymous-fast** — public visitors get no session cookies and bypass auth handling; public GETs are rate-limited per IP (120 req/min).
+- Set leveling to disabled and the leaderboard hides itself; personal pages keep working (members keep their rank link).
+
 ## 🚀 Quick start (Docker Compose)
 
 **Prerequisites:** Docker + Docker Compose. A Discord application with a bot token
@@ -97,6 +113,7 @@ All configuration is via `.env` (see `.env.example` for the annotated template):
 | `POCKETBASE_ADMIN_EMAIL` | ✅ | Superuser email (auto-created). |
 | `POCKETBASE_ADMIN_PASSWORD` | ✅ | Superuser password (**min 8 chars**, auto-created). |
 | `ORIGIN` | ✅ | Public URL the dashboard is opened from (e.g. `http://localhost:3000`). Must match or form actions fail. |
+| `PUBLIC_URL` | — | Public site base URL (usually same public origin as `ORIGIN`). Enables the "View stats online" link button on `/level`. |
 | `INTERNAL_API_SECRET` | ▲ | Shared secret for the dashboard↔bot bridge (Discord names + live actions). **Blank = bridge disabled**, dashboard degrades to DB-only/raw-IDs. Bot & web must share the same value; use `openssl rand -hex 32`. Internal network only — never exposed to a host port. |
 | `BOT_API_PORT` | — | Port for the bot's internal API on the Docker network (default `8787`; no host mapping). |
 | `POCKETBASE_PORT` | — | Host port for PocketBase (default `8090`). |
@@ -246,8 +263,14 @@ npm test                      # run the unit tests (node --test): leveling math,
 cd web
 npm install
 POCKETBASE_URL=http://127.0.0.1:8090 ORIGIN=http://localhost:5173 \
-  INTERNAL_API_SECRET=<same-as-bot> BOT_API_URL=http://127.0.0.1:8787 npm run dev
+  INTERNAL_API_SECRET=<same-as-bot> BOT_API_URL=http://127.0.0.1:8787 \
+  POCKETBASE_ADMIN_EMAIL=<superuser-email> POCKETBASE_ADMIN_PASSWORD=<superuser-password> \
+  npm run dev
 ```
+
+> The `POCKETBASE_ADMIN_*` vars power the **public pages** (leaderboard/profile). Without them the
+> dashboard still works (login provides its own token), but public routes show a
+> "Stats are temporarily unavailable" notice.
 
 > Skip `INTERNAL_API_SECRET` / `BOT_API_URL` to develop the dashboard against PocketBase
 > alone — it runs in degraded mode (raw IDs, DB-only edits) with an "bot offline" banner.
@@ -265,7 +288,7 @@ dd-bot/
 ├─ test/                  # node --test unit tests (leveling, UI builders, command contracts)
 ├─ pb_migrations/         # PocketBase schema (auto-applied)
 ├─ pocketbase/            # PocketBase Dockerfile + entrypoint
-├─ web/                   # SvelteKit 5 admin dashboard
+├─ web/                   # SvelteKit 5 admin dashboard + public site (leaderboard, profiles, privacy)
 ├─ deploy/updater/        # auto-update sidecar (continuous deployment)
 ├─ Dockerfile             # bot image
 └─ docker-compose.yml     # full stack
@@ -275,7 +298,7 @@ dd-bot/
 
 - [discord.js](https://discord.js.org/) — Discord API library
 - [PocketBase](https://pocketbase.io/) — database & auth
-- [SvelteKit](https://svelte.dev/) (Svelte 5) — admin dashboard
+- [SvelteKit](https://svelte.dev/) (Svelte 5) — admin dashboard & public site
 - [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) — optional public access
 
 ## 📄 License

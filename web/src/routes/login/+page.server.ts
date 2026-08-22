@@ -18,6 +18,6 @@ export const actions: Actions = {
 		}
 
 		// The auth cookie is written by the server hook after this response.
-		throw redirect(303, '/');
+		throw redirect(303, '/dashboard');
 	}
 };
