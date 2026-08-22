@@ -55,7 +55,8 @@
 
 			<nav class="nav">
 				{#each nav as item (item.href)}
-					<a href={item.href} class:active={page.url.pathname === item.href}>
+					{@const active = page.url.pathname === item.href}
+					<a href={item.href} class:active aria-current={active ? 'page' : undefined}>
 						<span class="nav-icon">{item.icon}</span>
 						{item.label}
 					</a>
@@ -76,7 +77,12 @@
 		</aside>
 
 		<main class="main">
-			{@render children()}
+			<!-- Keyed on the URL so SvelteKit page swaps animate in on route/query change -->
+			{#key page.url.href}
+				<div class="page">
+					{@render children()}
+				</div>
+			{/key}
 		</main>
 	</div>
 	<Toasts />

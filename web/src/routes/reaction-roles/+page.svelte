@@ -9,6 +9,7 @@
 	import CopyId from '$lib/components/CopyId.svelte';
 	import MentionField from '$lib/components/MentionField.svelte';
 	import type { RoleDTO } from '$lib/server/bot';
+	import { animateIn } from '$lib/actions/animate';
 
 	let { data } = $props();
 
@@ -132,7 +133,7 @@
 {/if}
 
 {#if gid && online && panel === 'new'}
-	<div class="card section builder">
+	<div class="card section builder" use:animateIn>
 		<h2>✨ New reaction-role message</h2>
 		<form method="POST" action="?/createMessage" use:enhance={track('create', resetCreate)}>
 			<input type="hidden" name="guild_id" value={gid} />
@@ -194,7 +195,7 @@
 {/if}
 
 {#if gid && online && panel === 'reuse'}
-	<div class="card section builder">
+	<div class="card section builder" use:animateIn>
 		<h2>♻️ Reuse an existing message</h2>
 		<p class="muted hint reuse-lead">
 			Turn a message the bot has already posted into a reaction-role message — handy for restoring
@@ -308,8 +309,8 @@
 			</div>
 		{:else}
 			<div class="stack">
-				{#each data.groups as g (g.message_id)}
-					<div class="card group" class:missing={g.exists === false}>
+				{#each data.groups as g, gi (g.message_id)}
+					<div class="card group" class:missing={g.exists === false} use:animateIn={{ delay: gi * 70 }}>
 						<div class="group-head">
 							<div class="stack" style="gap:0.35rem">
 								<div class="cluster">
@@ -567,6 +568,36 @@
 		align-items: center;
 		margin-top: 0.5rem;
 		flex-wrap: wrap;
+	}
+	.entry-row .grow2 {
+		flex: 2 1 200px;
+		min-width: 160px;
+	}
+	.entry-row input.grow,
+	.entry-row :global(.grow) {
+		flex: 1 1 90px;
+		min-width: 0;
+	}
+	.entry-row .style-sel {
+		flex: 0 0 110px;
+	}
+	.entry-row :global(button.btn.small) {
+		flex: 0 0 auto;
+	}
+	@media (max-width: 720px) {
+		.entry-row {
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+			align-items: end;
+		}
+		.entry-row .grow2 {
+			grid-column: 1 / -1;
+			flex: none;
+		}
+		.entry-row input.grow,
+		.entry-row select.style-sel {
+			flex: none;
+		}
 	}
 	.entries-head {
 		display: flex;

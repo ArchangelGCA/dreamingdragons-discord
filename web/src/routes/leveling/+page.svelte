@@ -6,6 +6,7 @@
 	import RoleBadge from '$lib/components/RoleBadge.svelte';
 	import Avatar from '$lib/components/Avatar.svelte';
 	import type { RoleDTO } from '$lib/server/bot';
+	import { animateIn } from '$lib/actions/animate';
 
 	let { data, form } = $props();
 
@@ -42,7 +43,7 @@
 {/if}
 
 {#if gid}
-	<div class="section">
+	<div class="section" use:animateIn>
 		<h2>⚙️ Settings</h2>
 		<form method="POST" action="?/saveSettings" use:enhance={track('settings')} class="card pad-lg">
 			<input type="hidden" name="guild_id" value={gid} />
@@ -76,7 +77,7 @@
 
 	<!-- APPEND-REWARDS -->
 
-	<div class="section">
+	<div class="section" use:animateIn={{ delay: 60 }}>
 		<h2>🎁 Role rewards</h2>
 		<form method="POST" action="?/addReward" use:enhance={track('reward')} class="card" style="margin-bottom:1rem">
 			<input type="hidden" name="guild_id" value={gid} />
@@ -98,9 +99,9 @@
 		</form>
 
 		{#if data.rewards.length === 0}
-			<div class="empty"><span class="big">🎁</span><span>No role rewards defined yet.</span></div>
+			<div class="empty" use:animateIn={{ delay: 100 }}><span class="big">🎁</span><span>No role rewards defined yet.</span></div>
 		{:else}
-			<div class="table-wrap scroll">
+			<div class="table-wrap scroll" use:animateIn={{ delay: 100 }}>
 				<table>
 					<thead><tr><th style="width:90px">Level</th><th>Role</th><th></th></tr></thead>
 					<tbody>
@@ -125,7 +126,7 @@
 
 	<!-- APPEND-MAINTENANCE -->
 
-	<div class="section">
+	<div class="section" use:animateIn={{ delay: 120 }}>
 		<h2>🛠️ Maintenance</h2>
 		<div class="card pad-lg">
 			<div class="cluster">
@@ -149,7 +150,7 @@
 
 			{#if form?.recover}
 				{@const rec = form.recover}
-				<div style="margin-top:1.1rem">
+				<div style="margin-top:1.1rem" use:animateIn>
 					{#if rec.applied}
 						<div class="alert success">Applied: {rec.updated} updated, {rec.skipped} skipped, {rec.errors} errors.</div>
 					{:else if rec.changes.length === 0}
@@ -197,5 +198,9 @@
 		color: var(--accent-soft);
 		font-weight: 700;
 		font-size: 0.8rem;
+		transition: transform var(--t);
+	}
+	.lvl-chip:hover {
+		transform: translateY(-1px);
 	}
 </style>

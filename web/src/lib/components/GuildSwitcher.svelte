@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import { fly } from 'svelte/transition';
 	import Avatar from './Avatar.svelte';
 	import { formatNumber } from '$lib/leveling';
 	import type { GuildDTO } from '$lib/server/bot';
@@ -17,72 +18,69 @@
 
 <svelte:window onkeydown={onKey} />
 
-<div class="gs">
-	{#if guilds.length === 0}
-		<div class="gs-empty faint">No servers available</div>
-	{:else}
-		<form method="POST" action="/set-guild">
-			<input type="hidden" name="redirectTo" value={redirectTo} />
+{#if guilds.length === 0}
+	<div class="gs-empty faint">No servers available</div>
+{:else}
+	<form method="POST" action="/set-guild" class="gs">
+		<input type="hidden" name="redirectTo" value={redirectTo} />
 
-			<button
-				type="button"
-				class="gs-trigger"
-				aria-haspopup="listbox"
-				aria-expanded={open}
-				onclick={() => (open = !open)}
-			>
-				<Avatar
-					src={current?.icon ?? ''}
-					name={current?.name ?? '?'}
-					seed={current?.id ?? ''}
-					rounded="square"
-					size={32}
-				/>
-				<span class="gs-info">
-					<span class="gs-label faint">Server</span>
-					<span class="gs-name">{current?.name ?? 'Select a server'}</span>
-				</span>
-				<span class="gs-caret" class:open>▾</span>
-			</button>
-
-			{#if open}
-				<div class="gs-menu" role="listbox" tabindex="-1">
-					{#each guilds as g (g.id)}
-						<button
-							type="submit"
-							name="guild_id"
-							value={g.id}
-							class="gs-item"
-							class:sel={g.id === currentGuildId}
-							role="option"
-							aria-selected={g.id === currentGuildId}
-						>
-							<Avatar src={g.icon ?? ''} name={g.name} seed={g.id} rounded="square" size={30} />
-							<span class="gs-item-name">{g.name}</span>
-							<span class="gs-count faint">{formatNumber(g.memberCount)}</span>
-						</button>
-					{/each}
-				</div>
-			{/if}
-		</form>
+		<button
+			type="button"
+			class="gs-trigger"
+			aria-haspopup="listbox"
+			aria-expanded={open}
+			onclick={() => (open = !open)}
+		>
+			<Avatar
+				src={current?.icon ?? ''}
+				name={current?.name ?? '?'}
+				seed={current?.id ?? ''}
+				rounded="square"
+				size={32}
+			/>
+			<span class="gs-info">
+				<span class="gs-label faint">Server</span>
+				<span class="gs-name">{current?.name ?? 'Select a server'}</span>
+			</span>
+			<span class="gs-caret" class:open>▾</span>
+		</button>
 
 		{#if open}
-			<button class="gs-backdrop" aria-hidden="true" tabindex="-1" onclick={() => (open = false)}
-			></button>
+			<div
+				class="gs-menu"
+				role="listbox"
+				tabindex="-1"
+				in:fly={{ y: -6, duration: 180, delay: 20 }}
+				out:fly={{ y: -4, duration: 140 }}
+			>
+				{#each guilds as g (g.id)}
+					<button
+						type="submit"
+						name="guild_id"
+						value={g.id}
+						class="gs-item"
+						class:sel={g.id === currentGuildId}
+						role="option"
+						aria-selected={g.id === currentGuildId}
+					>
+						<Avatar src={g.icon ?? ''} name={g.name} seed={g.id} rounded="square" size={30} />
+						<span class="gs-item-name">{g.name}</span>
+						<span class="gs-count faint">{formatNumber(g.memberCount)}</span>
+					</button>
+				{/each}
+			</div>
 		{/if}
-	{/if}
-</div>
+	</form>
 
-<!-- STYLE-PLACEHOLDER -->
+	{#if open}
+		<button class="gs-backdrop" aria-hidden="true" tabindex="-1" onclick={() => (open = false)}
+		></button>
+	{/if}
+{/if}
 
 <style>
 	.gs {
 		position: relative;
-		padding: 0.25rem 0.35rem 0.6rem;
-	}
-	.gs-empty {
-		padding: 0.5rem 0.6rem;
-		font-size: 0.8rem;
 	}
 	.gs-trigger {
 		display: flex;
@@ -96,11 +94,18 @@
 		color: var(--text);
 		cursor: pointer;
 		text-align: left;
-		transition: border-color var(--t), background var(--t);
+		transition:
+			border-color var(--t),
+			background var(--t),
+			transform var(--t);
 	}
 	.gs-trigger:hover {
 		border-color: var(--border-strong);
 		background: var(--bg-hover);
+		transform: translateY(-1px);
+	}
+	.gs-trigger:active {
+		transform: translateY(0);
 	}
 	.gs-info {
 		display: flex;
@@ -145,7 +150,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: 0.1rem;
-		animation: rise 0.16s var(--ease);
 	}
 	.gs-item {
 		display: flex;
@@ -159,9 +163,15 @@
 		cursor: pointer;
 		text-align: left;
 		font-size: 0.88rem;
+		transition:
+			background var(--t),
+			transform var(--t);
 	}
 	.gs-item:hover {
 		background: var(--bg-hover);
+	}
+	.gs-item:active {
+		transform: scale(0.98);
 	}
 	.gs-item.sel {
 		background: var(--accent-grad-soft);
@@ -183,5 +193,23 @@
 		border: none;
 		background: transparent;
 		cursor: default;
+	}
+
+	@media (max-width: 860px) {
+		.gs {
+			display: flex;
+			align-items: center;
+			gap: 0.5rem;
+		}
+		.gs-item {
+			padding: 0.4rem 0.45rem;
+		}
+		.gs-item .gs-count {
+			display: none;
+		}
+		/* sidebar is horizontal; keep switcher compact */
+		.gs {
+			margin-right: 0.35rem;
+		}
 	}
 </style>

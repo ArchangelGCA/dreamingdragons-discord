@@ -4,6 +4,7 @@
 	import Avatar from '$lib/components/Avatar.svelte';
 	import CopyId from '$lib/components/CopyId.svelte';
 	import { formatNumber, levelProgress } from '$lib/leveling';
+	import { animateIn } from '$lib/actions/animate';
 
 	let { data } = $props();
 
@@ -41,7 +42,7 @@
 {/if}
 
 {#if cur}
-	<div class="hero card section">
+	<div class="hero card section" use:animateIn>
 		<Avatar src={cur.icon ?? ''} name={cur.name} seed={cur.id} rounded="square" size={64} />
 		<div class="hero-info">
 			<div class="hero-name">{cur.name}</div>
@@ -54,18 +55,22 @@
 {/if}
 
 <div class="grid section">
-	<StatCard label="Reaction roles" value={data.counts.reactionRoles} icon="🏷️" tone="accent" />
-	<StatCard label="Level rewards" value={data.counts.levelRewards} icon="🎁" tone="gold" />
-	<StatCard label="Tracked users" value={data.counts.userLevels} icon="👥" tone="blue" />
-	{#if cur}
-		<StatCard label="Server members" value={formatNumber(cur.memberCount)} icon="🐉" tone="green" />
-	{/if}
+	{#each [
+		{ label: 'Reaction roles', value: data.counts.reactionRoles, icon: '🏷️', tone: 'accent' },
+		{ label: 'Level rewards',  value: data.counts.levelRewards,  icon: '🎁', tone: 'gold'   },
+		{ label: 'Tracked users',  value: data.counts.userLevels,    icon: '👥', tone: 'blue'   },
+		...(cur ? [{ label: 'Server members', value: formatNumber(cur.memberCount), icon: '🐉', tone: 'green' }] : [])
+	] as c, i (c.label)}
+		<div use:animateIn={{ delay: i * 70 }}>
+			<StatCard label={c.label} value={c.value} icon={c.icon} tone={c.tone as 'accent' | 'green' | 'blue' | 'gold'} />
+		</div>
+	{/each}
 </div>
 
 <div class="section">
 	<h2>🏆 Top members by XP</h2>
 	{#if data.topUsers.length === 0}
-		<div class="empty">
+		<div class="empty" use:animateIn>
 			<span class="big">📊</span>
 			<span>No XP data yet — activity will show up here.</span>
 		</div>
@@ -74,7 +79,7 @@
 			{#each data.topUsers as u, i (u.id)}
 				{@const m = members[u.user_id]}
 				{@const p = levelProgress(u.xp)}
-				<div class="board-row">
+				<div class="board-row" use:animateIn={{ delay: 60 + i * 55 }}>
 					<div class="rank" class:top={i < 3}>{medals[i] ?? i + 1}</div>
 					<Avatar src={m?.avatar ?? ''} name={m?.displayName ?? u.user_id} seed={u.user_id} size={40} />
 					<div class="who">
@@ -106,6 +111,9 @@
 		font-size: 0.8rem;
 		font-weight: 600;
 		color: var(--text-muted);
+		transition:
+			background var(--t),
+			border-color var(--t);
 	}
 	.bot-pill .dot {
 		width: 8px;
@@ -120,17 +128,28 @@
 		display: flex;
 		align-items: center;
 		gap: 1.1rem;
+		background: var(--accent-grad);
+		border: none;
+		color: #fff;
+		overflow: hidden;
 	}
-	.hero-info {
-		display: flex;
-		flex-direction: column;
-		gap: 0.5rem;
-		min-width: 0;
+	.hero::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background: radial-gradient(600px 200px at 0% 0%, rgba(32, 221, 224, 0.25), transparent 60%);
+		pointer-events: none;
 	}
 	.hero-name {
 		font-size: 1.3rem;
 		font-weight: 800;
 		letter-spacing: -0.02em;
+	}
+	.hero .chip,
+	.hero :global(.copy-id) {
+		background: rgba(255, 255, 255, 0.14);
+		border-color: rgba(255, 255, 255, 0.22);
+		color: #fff;
 	}
 	.board {
 		display: flex;
@@ -143,9 +162,14 @@
 		gap: 0.85rem;
 		padding: 0.65rem 0.35rem;
 		border-bottom: 1px solid var(--border);
+		transition: background var(--t);
 	}
 	.board-row:last-child {
 		border-bottom: none;
+	}
+	.board-row:hover {
+		background: var(--bg-hover);
+		border-radius: var(--radius-sm);
 	}
 	.rank {
 		width: 30px;
@@ -153,6 +177,10 @@
 		font-weight: 700;
 		color: var(--text-muted);
 		flex: 0 0 auto;
+		transition: transform var(--t-spring);
+	}
+	.board-row:hover .rank {
+		transform: scale(1.1);
 	}
 	.rank.top {
 		font-size: 1.25rem;
@@ -197,5 +225,35 @@
 		font-size: 0.62rem;
 		font-weight: 700;
 		letter-spacing: 0.08em;
+	}
+	.hero-info {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+		min-width: 0;
+	}
+
+	@media (max-width: 860px) {
+		.hero {
+			flex-direction: column;
+			text-align: center;
+			padding: 1.6rem 1.25rem;
+		}
+		.hero-info {
+			align-items: center;
+		}
+		.board-row {
+			flex-wrap: wrap;
+			gap: 0.5rem 0.6rem;
+		}
+		.rank {
+			width: 24px;
+		}
+		.who {
+			flex: 1 1 60%;
+		}
+		.lvl {
+			flex: 0 0 auto;
+		}
 	}
 </style>

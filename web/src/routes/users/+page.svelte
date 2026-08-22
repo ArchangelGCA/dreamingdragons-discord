@@ -4,6 +4,7 @@
 	import Avatar from '$lib/components/Avatar.svelte';
 	import CopyId from '$lib/components/CopyId.svelte';
 	import { formatNumber, levelProgress } from '$lib/leveling';
+	import { animateIn } from '$lib/actions/animate';
 
 	let { data } = $props();
 	const guild = $derived(data.guild);
@@ -32,7 +33,7 @@
 
 {#if gid}
 	{#if guild?.botOnline}
-		<div class="section">
+		<div class="section" use:animateIn>
 			<h2>🔍 Find a member</h2>
 			<form method="GET" class="card">
 				<div class="row">
@@ -44,7 +45,7 @@
 				</div>
 			</form>
 			{#if data.search.length > 0}
-				<div class="table-wrap scroll" style="margin-top:0.75rem">
+				<div class="table-wrap scroll" style="margin-top:0.75rem" use:animateIn={{ delay: 60 }}>
 					<table>
 						<thead><tr><th>Member</th><th style="width:220px">Set level</th></tr></thead>
 						<tbody>
@@ -78,7 +79,7 @@
 
 	<!-- APPEND-TABLE -->
 
-	<div class="section">
+	<div class="section" use:animateIn={{ delay: 120 }}>
 		<h2>👥 Tracked members</h2>
 		{#if data.users.length === 0}
 			<div class="empty"><span class="big">👥</span><span>No user level data yet for this server.</span></div>
@@ -89,10 +90,10 @@
 						<tr><th>Member</th><th style="width:230px">Level & progress</th><th style="width:190px">XP</th><th class="right">Actions</th></tr>
 					</thead>
 					<tbody>
-						{#each data.users as u (u.id)}
-							{@const m = members[u.user_id]}
-							{@const p = levelProgress(u.xp)}
-							<tr>
+	{#each data.users as u, ui (u.id)}
+		{@const m = members[u.user_id]}
+		{@const p = levelProgress(u.xp)}
+		<tr use:animateIn={{ delay: 120 + ui * 30 }}>
 								<td>
 									<div class="cluster" style="gap:0.6rem">
 										<Avatar src={m?.avatar ?? ''} name={m?.displayName ?? u.user_id} seed={u.user_id} size={34} />
@@ -156,6 +157,21 @@
 {/if}
 
 <style>
+	.empty {
+		display: grid;
+		place-items: center;
+		gap: 0.5rem;
+		padding: 2.5rem 1rem;
+		text-align: center;
+		color: var(--text-muted);
+		border: 1px dashed var(--border-strong);
+		border-radius: var(--radius);
+		background: var(--bg-elev);
+	}
+	.empty .big {
+		font-size: 2rem;
+		opacity: 0.8;
+	}
 	.lvl-chip {
 		display: inline-block;
 		padding: 0.16rem 0.6rem;
@@ -164,5 +180,16 @@
 		color: var(--accent-soft);
 		font-weight: 700;
 		font-size: 0.8rem;
+	}
+	@media (max-width: 860px) {
+		table td:nth-child(2) {
+			min-width: 180px;
+		}
+		table td:nth-child(3) {
+			min-width: 150px;
+		}
+		td form {
+			margin: 0;
+		}
 	}
 </style>

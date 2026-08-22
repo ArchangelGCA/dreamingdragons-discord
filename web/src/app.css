@@ -39,6 +39,7 @@
 	--shadow: 0 4px 14px -3px rgba(15, 44, 75, 0.10), 0 2px 6px -3px rgba(15, 44, 75, 0.08);
 	--shadow-lg: 0 26px 50px -14px rgba(15, 44, 75, 0.22);
 	--ring: 0 0 0 3px rgba(0, 165, 148, 0.30);
+	--topline: linear-gradient(90deg, transparent, rgba(0, 165, 148, 0.55), transparent);
 
 	--radius-sm: 8px;
 	--radius: 12px;
@@ -47,7 +48,11 @@
 
 	--font: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
 	--ease: cubic-bezier(0.4, 0, 0.2, 1);
+	--ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+	--ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
 	--t: 150ms var(--ease);
+	--t-slow: 320ms var(--ease-out);
+	--t-spring: 400ms var(--ease-bounce);
 
 	color-scheme: light;
 }
@@ -94,7 +99,9 @@
 }
 
 /* ── Base ──────────────────────────────────────────────── */
-* {
+*,
+*::before,
+*::after {
 	box-sizing: border-box;
 }
 *::selection {
@@ -197,8 +204,24 @@ p {
 	padding: 2.25rem 2.75rem 4rem;
 	max-width: 1180px;
 	width: 100%;
-	animation: rise 0.35s var(--ease);
+	min-width: 0; /* allow grid child to shrink, prevents overflow */
 }
+
+/* Route transition (applied by layout keyed block) */
+.page {
+	animation: pageEnter 420ms var(--ease-out) backwards;
+}
+@keyframes pageEnter {
+	from {
+		opacity: 0;
+		transform: translateY(16px) scale(0.995);
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+
 @keyframes rise {
 	from {
 		opacity: 0;
@@ -208,6 +231,29 @@ p {
 		opacity: 1;
 		transform: none;
 	}
+}
+@keyframes rise-slow {
+	from {
+		opacity: 0;
+		transform: translateY(18px);
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+
+/* Scroll-in animation — toggled by `use:animateIn` */
+.animate-in {
+	opacity: 0;
+	transform: translateY(16px);
+	transition:
+		opacity 480ms var(--ease-out) var(--animate-in-delay, 0ms),
+		transform 480ms var(--ease-out) var(--animate-in-delay, 0ms);
+}
+.animate-in.in {
+	opacity: 1;
+	transform: none;
 }
 
 /* ── Sidebar ───────────────────────────────────────────── */
@@ -259,7 +305,10 @@ p {
 	color: var(--text-muted);
 	font-weight: 600;
 	font-size: 0.92rem;
-	transition: background var(--t), color var(--t);
+	transition:
+		background var(--t),
+		color var(--t),
+		transform var(--t);
 }
 .nav a .nav-icon {
 	display: grid;
@@ -267,16 +316,38 @@ p {
 	width: 20px;
 	font-size: 1.05rem;
 	opacity: 0.9;
+	transition: transform var(--t);
 }
 .nav a:hover {
 	background: var(--bg-hover);
 	color: var(--text);
 	text-decoration: none;
+	transform: translateX(2px);
+}
+.nav a:hover .nav-icon {
+	transform: scale(1.18) rotate(-4deg);
 }
 .nav a.active {
 	color: #fff;
 	background: var(--accent-grad);
 	box-shadow: var(--accent-glow);
+	position: relative;
+	overflow: hidden;
+}
+.nav a.active::before {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background: linear-gradient(110deg, transparent 20%, rgba(255, 255, 255, 0.14) 50%, transparent 80%);
+	transform: translateX(-100%);
+	animation: activeShine 3.2s var(--ease) infinite;
+	pointer-events: none;
+}
+@keyframes activeShine {
+	50%,
+	100% {
+		transform: translateX(100%);
+	}
 }
 .sidebar .spacer {
 	flex: 1;
@@ -354,22 +425,46 @@ p {
 	gap: 1rem;
 }
 .card {
+	position: relative;
 	background: var(--bg-elev);
 	border: 1px solid var(--border);
 	border-radius: var(--radius);
 	padding: 1.35rem;
 	box-shadow: var(--shadow-sm);
+	transition:
+		transform var(--t),
+		box-shadow var(--t),
+		border-color var(--t);
 }
 .card.pad-lg {
 	padding: 1.6rem;
 }
 .card-hover {
-	transition: transform var(--t), box-shadow var(--t), border-color var(--t);
+	transition:
+		transform var(--t-spring),
+		box-shadow var(--t-spring),
+		border-color var(--t-spring);
 }
 .card-hover:hover {
-	transform: translateY(-2px);
+	transform: translateY(-4px) scale(1.005);
 	box-shadow: var(--shadow);
 	border-color: var(--border-strong);
+}
+/* subtle top accent line on interactive cards */
+.card-hover::before {
+	content: '';
+	position: absolute;
+	top: 0;
+	left: 20%;
+	right: 20%;
+	height: 1px;
+	background: var(--topline);
+	opacity: 0;
+	transition: opacity var(--t);
+	pointer-events: none;
+}
+.card-hover:hover::before {
+	opacity: 1;
 }
 .empty {
 	display: grid;
@@ -394,9 +489,11 @@ p {
 	overflow: hidden;
 	box-shadow: var(--shadow-sm);
 	background: var(--bg-elev);
+	max-width: 100%;
 }
 .table-wrap.scroll {
 	overflow-x: auto;
+	-webkit-overflow-scrolling: touch;
 }
 table {
 	width: 100%;
@@ -469,7 +566,10 @@ textarea {
 	color: var(--text);
 	font-size: 0.9rem;
 	font-family: inherit;
-	transition: border-color var(--t), box-shadow var(--t);
+	transition:
+		border-color var(--t),
+		box-shadow var(--t),
+		transform var(--t);
 }
 textarea {
 	resize: vertical;
@@ -481,6 +581,7 @@ textarea:focus {
 	outline: none;
 	border-color: var(--accent);
 	box-shadow: var(--ring);
+	transform: translateY(-1px);
 }
 input::placeholder,
 textarea::placeholder {
@@ -520,7 +621,10 @@ input[type='checkbox'] {
 	border-radius: var(--pill);
 	background: var(--bg-inset);
 	border: 1px solid var(--border-strong);
-	transition: background var(--t), border-color var(--t);
+	transition:
+		background var(--t),
+		border-color var(--t),
+		box-shadow var(--t);
 	flex: 0 0 auto;
 }
 .switch .track::after {
@@ -533,18 +637,24 @@ input[type='checkbox'] {
 	border-radius: 50%;
 	background: #fff;
 	box-shadow: var(--shadow-sm);
-	transition: transform var(--t);
+	transition:
+		transform var(--t-spring),
+		background var(--t);
 }
 .switch input:checked + .track {
 	background: var(--accent-grad);
 	border-color: transparent;
 }
 .switch input:checked + .track::after {
-	transform: translateX(18px);
+	transform: translateX(18px) scale(1.05);
 }
 .switch input:focus-visible + .track {
 	box-shadow: var(--ring);
 }
+.switch:active .track::after {
+	width: 22px;
+}
+
 /* ── Buttons ───────────────────────────────────────────── */
 .btn {
 	display: inline-flex;
@@ -561,17 +671,24 @@ input[type='checkbox'] {
 	font-family: inherit;
 	cursor: pointer;
 	white-space: nowrap;
-	transition: transform var(--t), box-shadow var(--t), background var(--t), opacity var(--t),
-		border-color var(--t), color var(--t);
+	transition:
+		transform var(--t),
+		box-shadow var(--t),
+		background var(--t),
+		opacity var(--t),
+		border-color var(--t),
+		color var(--t),
+		filter var(--t);
 }
 .btn:hover {
 	box-shadow: var(--accent-glow);
-	transform: translateY(-1px);
+	transform: translateY(-2px);
 	text-decoration: none;
 	color: #fff;
+	filter: brightness(1.05);
 }
 .btn:active {
-	transform: translateY(0);
+	transform: translateY(0) scale(0.98);
 }
 .btn:focus-visible:not(:hover) {
 	box-shadow: none;
@@ -582,6 +699,7 @@ input[type='checkbox'] {
 	cursor: not-allowed;
 	transform: none;
 	box-shadow: none;
+	filter: saturate(0.6);
 }
 .btn.secondary {
 	background: var(--bg-inset);
@@ -592,6 +710,7 @@ input[type='checkbox'] {
 	background: var(--bg-hover);
 	color: var(--text);
 	box-shadow: var(--shadow-sm);
+	filter: none;
 }
 .btn.ghost {
 	background: transparent;
@@ -601,6 +720,7 @@ input[type='checkbox'] {
 	background: var(--bg-hover);
 	color: var(--text);
 	box-shadow: none;
+	filter: none;
 }
 .btn.danger {
 	background: linear-gradient(135deg, #ef4444, #dc2626);
@@ -609,6 +729,10 @@ input[type='checkbox'] {
 	background: rgba(239, 68, 68, 0.12);
 	color: #f87171;
 	border-color: rgba(239, 68, 68, 0.3);
+}
+.btn.danger.secondary:hover {
+	filter: none;
+	background: rgba(239, 68, 68, 0.18);
 }
 .btn.small {
 	padding: 0.38rem 0.7rem;
@@ -647,6 +771,9 @@ input[type='checkbox'] {
 	font-size: 0.74rem;
 	font-weight: 700;
 	letter-spacing: 0.02em;
+	transition:
+		transform var(--t),
+		box-shadow var(--t);
 }
 .badge.on {
 	background: rgba(34, 197, 94, 0.15);
@@ -664,6 +791,9 @@ input[type='checkbox'] {
 	background: var(--bg-inset);
 	color: var(--text-muted);
 }
+.badge:hover {
+	transform: translateY(-1px);
+}
 .chip {
 	display: inline-flex;
 	align-items: center;
@@ -675,6 +805,10 @@ input[type='checkbox'] {
 	font-size: 0.82rem;
 	font-weight: 500;
 	color: var(--text);
+	transition: transform var(--t);
+}
+.chip:hover {
+	transform: translateY(-1px);
 }
 
 /* ── Alerts ────────────────────────────────────────────── */
@@ -705,6 +839,7 @@ input[type='checkbox'] {
 	border-radius: var(--pill);
 	background: var(--bg-inset);
 	overflow: hidden;
+	position: relative;
 }
 .progress > span {
 	display: block;
@@ -712,6 +847,22 @@ input[type='checkbox'] {
 	border-radius: var(--pill);
 	background: var(--accent-grad);
 	transition: width 0.5s var(--ease);
+	position: relative;
+}
+.progress > span::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+	animation: shimmer 2.5s infinite;
+}
+@keyframes shimmer {
+	0% {
+		transform: translateX(-100%);
+	}
+	100% {
+		transform: translateX(100%);
+	}
 }
 
 /* ── Layout helpers ────────────────────────────────────── */
@@ -758,13 +909,36 @@ details > summary {
 details > summary::-webkit-details-marker {
 	display: none;
 }
-.popover {
+details[open] > summary {
+	outline: none;
+}
+details > summary:focus-visible {
+	box-shadow: var(--ring);
+	border-radius: var(--radius-sm);
+}
+details {
+	position: relative;
+}
+details .popover {
 	margin-top: 0.5rem;
 	min-width: 260px;
 	text-align: left;
 	box-shadow: var(--shadow-lg);
 	animation: rise 0.2s var(--ease);
+	position: absolute;
+	z-index: 50;
+	background: var(--bg-elev-2);
+	border: 1px solid var(--border-strong);
+	border-radius: var(--radius);
+	max-height: min(70vh, 600px);
+	overflow-y: auto;
+	overscroll-behavior: contain;
 }
+/* Default placement: right-aligned, so panels stay on-screen */
+details:not(.drop-left) .popover {
+	right: 0;
+}
+
 /* ── Responsive ────────────────────────────────────────── */
 @media (max-width: 860px) {
 	.app {
@@ -788,17 +962,104 @@ details > summary::-webkit-details-marker {
 		flex-direction: row;
 		flex-wrap: wrap;
 		margin-top: 0;
+		gap: 0.15rem;
+	}
+	.sidebar .nav a {
+		padding: 0.55rem 0.6rem;
+		font-size: 0.88rem;
+		gap: 0.45rem;
+		min-height: 40px; /* touch target */
+	}
+	.sidebar .nav a .nav-icon {
+		font-size: 1rem;
+		width: auto;
 	}
 	.sidebar .spacer {
 		flex-basis: 100%;
 		flex: 1 1 100%;
 		height: 0;
+		display: none; /* was merely a push-down; handled by layout below */
 	}
 	.sidebar-divider {
 		display: none;
 	}
+	/* Move the utility row to its own line below the nav for a clean wrap */
+	.sidebar form[method='POST'][action='/logout'] {
+		margin-left: auto;
+	}
 	.main {
-		padding: 1.4rem 1.1rem 3rem;
+		padding: 1.35rem 1rem 3rem;
+	}
+	/* Make tap targets comfy */
+	.btn {
+		padding: 0.58rem 1rem;
+		min-height: 40px;
+	}
+	.btn.small {
+		padding: 0.42rem 0.72rem;
+		min-height: 36px;
+	}
+	/* Card tap targets & layout */
+	.topbar {
+		align-items: flex-start;
+	}
+	.row > div {
+		flex: 1 1 100%;
+		min-width: 0;
+	}
+	.row > div[style*='flex:0'],
+	.row > div[style*='flex: 0'] {
+		flex: 0 0 auto;
+	}
+	.card {
+		padding: 1.15rem;
+	}
+	.card.pad-lg {
+		padding: 1.25rem;
+	}
+	/* Inputs default to 16px to prevent iOS auto-zoom */
+	input,
+	select,
+	textarea {
+		font-size: 16px;
+	}
+	/* Table cells a bit tighter */
+	th,
+	td {
+		padding: 0.58rem 0.72rem;
+	}
+	/* Keep action forms on their own line on narrow screens */
+	td .cluster {
+		gap: 0.4rem;
+	}
+	.grid {
+		grid-template-columns: 1fr;
+	}
+	.cluster {
+		gap: 0.5rem;
+	}
+}
+
+@media (max-width: 480px) {
+	.brand span:last-child {
+		display: none;
+	}
+	.sidebar {
+		gap: 0.3rem;
+		padding: 0.6rem 0.7rem;
+	}
+	.sidebar .nav a {
+		padding: 0.45rem 0.55rem;
+		font-size: 0.85rem;
+		min-height: 36px;
+	}
+	.topbar h1 {
+		font-size: 1.4rem;
+	}
+	.bot-pill {
+		order: -1;
+		width: 100%;
+		justify-content: center;
 	}
 }
 
@@ -810,4 +1071,3 @@ details > summary::-webkit-details-marker {
 		transition-duration: 0.001ms !important;
 	}
 }
-
