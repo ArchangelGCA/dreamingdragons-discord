@@ -25,7 +25,7 @@
 
 <svelte:head>
 	<link rel="icon" href={favicon} />
-	<meta name="description" content="{siteName} — community leaderboard and stats, powered by the dd-bot leveling system." />
+	<meta name="description" content="{siteName} — community leaderboard and stats, powered by the dd-bot DreamingDragons's leveling system." />
 </svelte:head>
 
 <div class="pub">
