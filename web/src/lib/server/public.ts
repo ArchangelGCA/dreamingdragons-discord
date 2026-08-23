@@ -14,6 +14,7 @@
 import PocketBase from 'pocketbase';
 import { env } from '$env/dynamic/private';
 import { calculateLevelFromXp } from '$lib/leveling';
+import { resolveEquipped, type PublicCosmetics } from '$lib/cosmetics';
 import { getGuilds, resolveMembers, type GuildDTO } from './bot';
 
 const PB_URL = env.POCKETBASE_URL || 'http://127.0.0.1:8090';
@@ -189,6 +190,7 @@ async function publicProfile(
 ): Promise<{
 	entry: PublicEntry;
 	lastActiveDay: string | null; // YYYY-MM-DD, day precision on purpose
+	cosmetics: PublicCosmetics;
 } | null> {
 	const res = await pb.collection('user_levels').getList(1, 1, {
 		filter: pb.filter('guild_id = {:g} && user_id = {:u}', { g: guildId, u: userId }),
@@ -211,6 +213,21 @@ async function publicProfile(
 		if (!Number.isNaN(d.getTime())) lastActiveDay = d.toISOString().slice(0, 10);
 	}
 
+	// Equipped cosmetics — the user_economy collection may not exist yet on old
+	// deployments, so degrade gracefully to no cosmetics.
+	let cosmetics: PublicCosmetics;
+	try {
+		const economy = await pb.collection('user_economy').getList(1, 1, {
+			filter: pb.filter('guild_id = {:g} && user_id = {:u}', { g: guildId, u: userId }),
+			fields: 'equipped'
+		});
+		cosmetics = resolveEquipped(
+			economy.totalItems > 0 ? (economy.items[0].equipped as Record<string, string> | null) : null
+		);
+	} catch {
+		cosmetics = resolveEquipped(null);
+	}
+
 	return {
 		entry: {
 			userId,
@@ -220,7 +237,8 @@ async function publicProfile(
 			name: m?.displayName ?? null,
 			avatar: m?.avatar ?? null
 		},
-		lastActiveDay
+		lastActiveDay,
+		cosmetics
 	};
 }
 

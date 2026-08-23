@@ -6,7 +6,7 @@
 ![SvelteKit](https://img.shields.io/badge/SvelteKit-Svelte%205-FF3E00.svg)
 ![License](https://img.shields.io/badge/license-MIT-success.svg)
 
-A feature-rich Discord bot for communities — **reaction roles** (modern buttons *or* classic emoji reactions) and a **leveling / XP** system — bundled as a single, self-provisioning Docker deployment together with its database and a private admin dashboard.
+A feature-rich Discord bot for communities — **reaction roles** (modern buttons *or* classic emoji reactions), a **leveling / XP** system, and a **daily rewards / gold economy** with cosmetically customisable public profile cards — bundled as a single, self-provisioning Docker deployment together with its database and a private admin dashboard.
 
 ## 📦 What's inside
 
@@ -39,6 +39,20 @@ Everything is **multi-arch** — it runs on `linux/amd64` and `linux/arm64` (e.g
 - Automatic role rewards at configured levels, rich level-up cards, paginated leaderboard (`◀ Previous · Page n/m · Next ▶`).
 - Admin tools: setup, rewards, reset, enable/disable, sync, migrate existing roles, set level.
 - `/level` shows an accent-colored rank card with avatar, rank, progress bar and XP-to-next-level.
+
+### 🪙 Daily Rewards and Gold Economy
+
+- **`/daily`** — claim a daily reward worth **XP + gold 🪙**, tuned to the default leveling config (100 XP ≈ 5 messages). Streak bonuses grow up to **+100%** by day 10, plus gold **milestone bonuses every 7 days** and a rare **jackpot** (2× gold).
+- **Streak system** — claiming on consecutive UTC days builds a streak. A **3-day grace** keeps it safe: come back anytime within 3 days and it survives. Miss 4+ days and it resets (with a gentle "your streak ended" notice). Claiming during the grace shows a "saved it!" flock.
+- **DM reminders (opt-in, default OFF)** — `/reminders enabled:true` lets the bot DM you on the *last* day before your streak breaks. `/reminders enabled:false` opts out.
+- **Gold shop** — spend gold on cosmetics with `/shop`, `/buy`, `/equip` (and `/inventory`). Equipped items personalise the member's **public profile card** (`/u/<id>`) and the Discord `/level` rank card:
+  - 🎨 **Colours** — override the card accent gradient
+  - 🏷️ **Titles** — a title line under your name
+  - 🖼️ **Frames** — glow / animated rainbow borders
+  - 💫 **Flair** — a small emoji beside your name
+- All shop/equip actions happen **from Discord** — there is no login on the public site and no dashboard for users. Purchases are safe-guarded by per-user locks to prevent double claims.
+
+> Balance notes: a first week of perfect claims (welcome gift + streak + day-7 milestone) pays for your first colour; titles and frames need 2–6 weeks of streaks, so chat XP still dominates the leaderboard.
 
 ### 🛠️ Admin dashboard
 - Private (PocketBase superuser login — no public sign-up).
@@ -134,7 +148,7 @@ All configuration is via `.env` (see `.env.example` for the annotated template):
 
 No manual setup. On first `serve`, PocketBase applies the migration in
 `pb_migrations/` which creates the collections (`reaction_roles`, `level_settings`,
-`level_rewards`, `user_levels`), and the entrypoint upserts the superuser from your
+`level_rewards`, `user_levels`, `user_economy`), and the entrypoint upserts the superuser from your
 env vars. Collections have no public API rules — only the superuser (bot + dashboard)
 can read/write them. Data persists in the `pb_data` Docker volume.
 
@@ -236,12 +250,21 @@ official `arm64` variants. All three are verified to build for `linux/amd64` and
 | `/ping` | Check the bot is responsive. |
 | `/level [user]` | Show your (or another member's) level, XP and rank. |
 | `/levels [page]` | Paginated server XP leaderboard. |
+| `/daily` | Claim your daily reward (XP + gold, streak tracking). |
+| `/balance [user]` | Check a wallet: gold, streak, best streak, claims, equipped cosmetics. |
+| `/shop [category]` | Browse the cosmetics shop (colours, titles, frames, flair). |
+| `/buy <item>` | Purchase a cosmetic (autocomplete). |
+| `/equip <item>` | Equip an owned cosmetic, or remove one (autocomplete includes unequip options). |
+| `/inventory` | View your owned cosmetics and what's equipped. |
+| `/reminders <enabled>` | Opt in/out of DM streak reminders (default OFF). |
 | `/reactionrole` | Admin: `setup`, `add`, `list`, `edit`, `remove`, `delete` reaction roles. |
 | `/leveladmin` | Admin: `setup`, `setreward`, `removereward`, `resetuser`, `enable`, `disable`, `sync`, `migrateroles`, `setlevel`. |
 
 **Button reaction role example:** `/reactionrole setup channel:#roles message_content:"Pick a role!" role:@Gamer button:true label:"Gamer" style:success`
 
 **Classic emoji example:** `/reactionrole setup channel:#roles message_content:"React!" role:@Gamer emoji:🎮`
+
+> ⚠ The cosmetics catalog is duplicated between `utils/economy.js` (bot) and `web/src/lib/cosmetics.ts` (dashboard). Keep both in sync when adding or editing items.
 
 ## 💻 Local development (without Docker)
 
@@ -257,7 +280,8 @@ npm run deploy                # register slash commands
 npm run dev                   # start with auto-reload (nodemon); the internal API
                               # listens on 127.0.0.1:${BOT_API_PORT:-8787}
 npm test                      # run the unit tests (node --test): leveling math,
-                              # recovery planner, CV2 UI builders, command contracts
+                              # economy math/streak/reward, recovery planner, CV2 UI builders,
+                              # command contracts
 
 # Admin dashboard (share the SAME INTERNAL_API_SECRET as the bot; point BOT_API_URL at it)
 cd web
@@ -283,7 +307,8 @@ dd-bot/
 ├─ deploy-commands.js     # registers slash commands (guild or global)
 ├─ commands/              # slash commands (admin/, fun/, utility/)
 ├─ api/                   # bot's internal HTTP API for the dashboard (names + actions)
-├─ utils/                 # pocketbase, leveling, reactionroles, ui (Components V2 kit), levelui
+├─ utils/                 # pocketbase, leveling, economy (daily/cosmetics), reminders,
+│                         # reactionroles, ui (Components V2 kit), levelui, economyui
 ├─ init/                  # boot-time reaction-role message caching
 ├─ test/                  # node --test unit tests (leveling, UI builders, command contracts)
 ├─ pb_migrations/         # PocketBase schema (auto-applied)

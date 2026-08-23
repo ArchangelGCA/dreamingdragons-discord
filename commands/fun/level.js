@@ -3,6 +3,7 @@ import { calculateLevelFromXp } from '../../utils/leveling.js';
 import { buildLevelCard } from '../../utils/levelui.js';
 import { CV2 } from '../../utils/ui.js';
 import { getPb } from '../../utils/pocketbase.js';
+import { getEquippedCosmetics } from '../../utils/economy.js';
 
 export default {
     data: new SlashCommandBuilder()
@@ -44,6 +45,9 @@ export default {
             // Resolve the target's display color + avatar for the card.
             const member = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
 
+            // Equipped cosmetics (gold-bought card personalisation).
+            const equipped = await getEquippedCosmetics(pb, interaction.guildId, targetUser.id).catch(() => null);
+
             // Optional link to the public web profile (only when PUBLIC_URL is set).
             const publicBase = (process.env.PUBLIC_URL || '').replace(/\/+$/, '');
             const profileUrl = publicBase
@@ -53,7 +57,10 @@ export default {
             const card = buildLevelCard({
                 displayName: member?.displayName ?? targetUser.globalName ?? targetUser.username,
                 avatarUrl: targetUser.displayAvatarURL({ size: 128 }),
-                accentColor: member?.displayColor || null,
+                // Custom equipped accent colour wins over the member role colour.
+                accentColor: (equipped?.color?.accent ?? member?.displayColor) || null,
+                titleText: equipped?.title?.name,
+                flairEmoji: equipped?.flair?.emoji,
                 level,
                 xp: user.xp,
                 rank,

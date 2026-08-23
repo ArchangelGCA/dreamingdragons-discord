@@ -11,6 +11,8 @@ import {LEADERBOARD_BUTTON_PREFIX} from './utils/levelui.js';
 import {CV2, Colors, container, text} from './utils/ui.js';
 import {replyComponents, replyError, replyInfo} from './utils/replies.js';
 import {startApiServer} from './api/server.js';
+import {autocompleteBuyChoices, autocompleteEquippedChoices} from './utils/economy.js';
+import {startStreakReminderLoop} from './utils/reminders.js';
 
 // Load environment variables
 config();
@@ -333,6 +335,12 @@ async function handleAutocomplete(interaction) {
                 .filter(r => r.emoji_identifier)
                 .map(r => ({name: `${r.emoji_identifier}`.slice(0, 100), value: r.emoji_identifier}));
             await interaction.respond(choices);
+        } else if (commandName === 'buy' && focusedOption.name === 'item') {
+            const choices = autocompleteBuyChoices(focusedOption.value || '');
+            await interaction.respond(choices);
+        } else if (commandName === 'equip' && focusedOption.name === 'item') {
+            const choices = await autocompleteEquippedChoices(pb, interaction.guildId, interaction.user.id, focusedOption.value || '');
+            await interaction.respond(choices);
         }
     } catch (error) {
         console.error(`Error handling autocomplete for ${commandName}/${focusedOption.name}:`, error);
@@ -486,6 +494,7 @@ async function main() {
 
                 setupPresenceRotation();
                 await loadReactionRoleMessages(client);
+                startStreakReminderLoop(client);
 
             } catch (error) {
                 console.error("Error during post-login initialization:", error);

@@ -10,6 +10,7 @@
 	const pub = $derived(data.pub);
 	const profile = $derived(data.profile);
 	const entry = $derived(profile?.entry ?? null);
+	const cosmetics = $derived(profile?.cosmetics ?? null);
 	const name = $derived(entry ? (entry.name ?? anonymize(entry.userId)) : '');
 	const p = $derived(levelProgress(entry?.xp ?? 0));
 	const siteName = $derived(pub.guild?.name ?? 'this community');
@@ -75,9 +76,12 @@
 	</div>
 {:else}
 <div class="center" use:animateIn>
-	<div class="card profile">
+	<div class="card profile {cosmetics?.frame ?? ''}" style:border-image={cosmetics?.color ? `linear-gradient(90deg, ${cosmetics.color.from}, ${cosmetics.color.to}) 1` : undefined}>
 		<Avatar src={entry.avatar ?? ''} {name} seed={entry.userId} size={88} />
-		<h1 class="p-name">{name}</h1>
+		<h1 class="p-name">{cosmetics?.flair ? cosmetics.flair + ' ' : ''}{name}</h1>
+		{#if cosmetics?.title}
+			<p class="p-title">{cosmetics.title}</p>
+		{/if}
 		<div class="cluster" style="justify-content:center">
 			<span class="rank-pill">Rank #{entry.rank}</span>
 			<span class="lvl-chip">Level {entry.level}</span>
@@ -143,6 +147,13 @@
 		margin: 0.2rem 0 0.1rem;
 		font-size: 1.5rem;
 	}
+	.p-title {
+		font-style: italic;
+		opacity: 0.75;
+		letter-spacing: 0.02em;
+		font-size: 0.95rem;
+		margin: 0 0 0.1rem;
+	}
 	.rank-pill {
 		padding: 0.22rem 0.7rem;
 		border-radius: var(--pill);
@@ -186,5 +197,52 @@
 	}
 	.transparency p {
 		font-size: 0.85rem;
+	}
+
+	/* ── Cosmetic frame classes ──────────────────────── */
+	.frame-glow {
+		box-shadow: 0 0 22px 4px rgba(255, 255, 255, 0.35);
+		border-radius: var(--radius);
+	}
+	.frame-ember {
+		box-shadow: 0 0 26px 6px rgba(245, 166, 35, 0.45);
+		border-radius: var(--radius);
+	}
+	.frame-rainbow {
+		position: relative;
+		border-radius: var(--radius);
+	}
+	.frame-rainbow::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		border-radius: inherit;
+		padding: 2px;
+		background: linear-gradient(
+			90deg,
+			#ff0044,
+			#ff7700,
+			#ffdd00,
+			#33dd55,
+			#00aaff,
+			#7755ff,
+			#ff0044
+		);
+		background-size: 200% 100%;
+		-webkit-mask:
+			linear-gradient(#000 0 0) content-box,
+			linear-gradient(#000 0 0) padding-box;
+		-webkit-mask-composite: xor;
+		mask:
+			linear-gradient(#000 0 0) content-box,
+			linear-gradient(#000 0 0) padding-box;
+		mask-composite: exclude;
+		animation: rainbow-shift 5s linear infinite;
+		pointer-events: none;
+	}
+	@keyframes rainbow-shift {
+		to {
+			background-position: 200% 0;
+		}
 	}
 </style>

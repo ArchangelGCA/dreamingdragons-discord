@@ -28,7 +28,7 @@ export const LEADERBOARD_PAGE_SIZE = 10;
  * @param {boolean} [p.isSelf]
  * @param {string} [p.profileUrl] when set, a "View stats online" link button is added
  */
-export function buildLevelCard({ displayName, avatarUrl, accentColor, level, xp, rank, isSelf, profileUrl }) {
+export function buildLevelCard({ displayName, avatarUrl, accentColor, level, xp, rank, isSelf, profileUrl, titleText, flairEmoji }) {
     const xpIntoLevel = xp - cumulativeXpForLevel(level);
     const xpForThisLevel = calculateXpForLevel(level + 1);
     const xpToNext = calculateXpToNextLevel(xp);
@@ -37,8 +37,9 @@ export function buildLevelCard({ displayName, avatarUrl, accentColor, level, xp,
 
     const headerLines = [
         `## Level ${formatInt(level)}`,
-        `**${displayName}**`
+        `**${flairEmoji ? flairEmoji + ' ' : ''}${displayName}**`
     ];
+    if (titleText) headerLines.push(`*${titleText}*`);
     const statBits = [];
     if (rank) statBits.push(`Rank **#${formatInt(rank)}**`);
     statBits.push(`**${formatInt(xp)}** XP`);
