@@ -106,7 +106,9 @@ That's it. On first boot PocketBase creates its collections and the superuser ac
 the bot deploys its slash commands and logs in, and the dashboard comes up.
 
 - Admin dashboard → `http://localhost:3000`
-- PocketBase dashboard → `http://localhost:8090/_/`
+- PocketBase dashboard → `http://localhost:8090/_/` (host port) — or, from anywhere
+  behind the Cloudflare Tunnel, the baked-in proxy at **`https://<your-domain>/pb/_/`**
+  (same superuser login, gated behind the dashboard session — see below).
 
 View logs / stop:
 
@@ -151,6 +153,15 @@ No manual setup. On first `serve`, PocketBase applies the migration in
 `level_rewards`, `user_levels`, `user_economy`), and the entrypoint upserts the superuser from your
 env vars. Collections have no public API rules — only the superuser (bot + dashboard)
 can read/write them. Data persists in the `pb_data` Docker volume.
+
+**Accessing the admin UI:** The dashboard includes a built-in proxy at
+**`/pb/_/`** (served by `web/src/routes/pb/[...path]/+server.ts`). When
+your site is behind the Cloudflare Tunnel (or any public origin), open
+`https://<your-domain>/pb/_/` — it's proxied to PocketBase through the
+`web` service, gated behind the dashboard admin session. The classic
+`http://localhost:8090/_/` (host port) still works for local access. The
+`/pb` tree is only reachable to authenticated admins, so the underlying
+8090 port never needs to be opened publicly.
 
 ## ☁️ Cloudflare Tunnel (optional)
 

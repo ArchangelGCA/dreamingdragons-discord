@@ -96,9 +96,14 @@ export const handle: Handle = async ({ event, resolve }) => {
 			? { id: pb.authStore.record.id, email: pb.authStore.record.email as string }
 			: null;
 
-	// Auth guard.
-	if (!event.locals.admin && !isPublic(event.url.pathname)) {
-		throw redirect(303, '/login');
+	// Auth guard: the /pb/* proxy requires admin auth. HTML navigations bounce
+	// to login; XHR / API traffic gets a clean 401 instead of a redirect.
+	if (!event.locals.admin) {
+		const isPb = event.url.pathname === '/pb' || event.url.pathname.startsWith('/pb/');
+		if (isPb && !event.request.headers.get('accept')?.includes('text/html')) {
+			return new Response('Unauthorized', { status: 401 });
+		}
+		if (!isPublic(event.url.pathname)) throw redirect(303, '/login');
 	}
 	if (event.locals.admin && event.url.pathname === '/login') {
 		throw redirect(303, '/dashboard');

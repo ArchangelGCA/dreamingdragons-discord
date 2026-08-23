@@ -73,7 +73,8 @@
 			<div class="spacer"></div>
 
 			<div class="sidebar-divider"></div>
-			<a class="btn ghost block" href="/">🌐 View public site</a>
+			<a class="btn ghost block" href="/" rel="noreferrer">🌐 View public site</a>
+			<a class="btn ghost block" href="/pb/_/" target="_blank" rel="noreferrer">🗄️ PocketBase</a>
 			<ThemeToggle />
 			<div class="user-chip">
 				<Avatar name={data.admin.email} seed={data.admin.email} size={26} />
