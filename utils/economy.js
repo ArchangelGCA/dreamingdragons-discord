@@ -146,14 +146,16 @@ export function dayGap(from, to) {
  * }}
  */
 export function evaluateClaim(record, today, rng = Math.random) {
-    const last = record?.lastClaimDate;
+    // PocketBase stores snake_case (last_claim_date) while tests/mock records may use camelCase;
+    // support both to avoid the "multiple claims per day" bug when the wrong key is read as undefined.
+    const last = record?.lastClaimDate ?? record?.last_claim_date ?? null;
 
     if (last === today) {
         return {outcome: 'already', newStreak: 0, brokenFrom: null, rescued: false, reward: null, isFirstEver: false};
     }
 
     if (!last) {
-        // First ever claim
+        // First ever claim (no previous date or empty string)
         const newStreak = 1;
         const isFirstEver = true;
         return {
@@ -172,7 +174,7 @@ export function evaluateClaim(record, today, rng = Math.random) {
         return {outcome: 'already', newStreak: 0, brokenFrom: null, rescued: false, reward: null, isFirstEver: false};
     }
 
-    const oldStreak = record.daily_streak || 1;
+    const oldStreak = record.daily_streak ?? record.dailyStreak ?? 1;
 
     if (gap <= GRACE_DAYS) {
         // Streak continues (perfect or rescued)
