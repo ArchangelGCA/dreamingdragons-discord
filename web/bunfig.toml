@@ -1,0 +1,9 @@
+# Bun 1.4 configuration for SvelteKit dashboard
+[install]
+frozenLockfile = false
+
+[install.cache]
+# use default
+
+[run]
+bun = true

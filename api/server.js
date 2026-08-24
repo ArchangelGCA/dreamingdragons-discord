@@ -50,7 +50,10 @@ class HttpError extends Error {
 
 /** Constant-time compare of the provided bearer token against the secret. */
 function isAuthorized(req, secret) {
-    const header = req.headers['authorization'] || '';
+    // Support both Node (req.headers['authorization']) and Bun (req.headers.get)
+    const header = typeof req.headers.get === 'function'
+        ? (req.headers.get('authorization') || '')
+        : (req.headers['authorization'] || '');
     const token = header.startsWith('Bearer ') ? header.slice(7) : '';
     if (!token) return false;
     const a = Buffer.from(token);
@@ -409,10 +412,41 @@ async function dispatch(client, method, pathname, query, body) {
 }
 
 
+/** Bun.serve JSON helper — always returns a Response */
+function jsonResponse(data, status = 200) {
+    return new Response(JSON.stringify(data ?? {}), {
+        status,
+        headers: { 'content-type': 'application/json; charset=utf-8' }
+    });
+}
+
+/** Detect Bun runtime (for fast path) */
+function isBunRuntime() {
+    return typeof globalThis.Bun !== 'undefined' && typeof globalThis.Bun.serve === 'function';
+}
+
+/** Read JSON body for Bun fetch handler (bounded) */
+async function readBunJsonBody(req) {
+    const text = await req.text();
+    const trimmed = text.trim();
+    if (!trimmed) return {};
+    if (Buffer.byteLength(trimmed, 'utf8') > MAX_BODY_BYTES) {
+        throw new HttpError(413, 'Request body too large.');
+    }
+    try {
+        return JSON.parse(trimmed);
+    } catch {
+        throw new HttpError(400, 'Invalid JSON body.');
+    }
+}
+
 /**
  * Start the internal API server.
+ * On Bun it uses Bun.serve (backed by uWebSockets.js, ~3x faster than node:http);
+ * on Node it falls back to node:http.createServer. Either way the same dispatch
+ * logic and auth checks are used.
  * @param {import('discord.js').Client} client
- * @returns {import('node:http').Server|null}
+ * @returns {import('node:http').Server|{close:Function}|null}
  */
 export function startApiServer(client) {
     const secret = process.env.INTERNAL_API_SECRET;
@@ -426,6 +460,55 @@ export function startApiServer(client) {
         console.warn('[api] INTERNAL_API_SECRET is shorter than 16 chars — use a longer random secret.');
     }
 
+    // ── Bun fast path: native HTTP via Bun.serve ────────────────────────
+    if (isBunRuntime()) {
+        const server = globalThis.Bun.serve({
+            port,
+            hostname: '0.0.0.0',
+            // Bun.serve handles fetch per request with no per-connection overhead
+            async fetch(req) {
+                const url = new URL(req.url);
+                const pathname = url.pathname.replace(/\/+$/, '') || '/';
+                const method = req.method;
+
+                if (pathname === '/health' && method === 'GET') {
+                    return jsonResponse({ ok: true, ready: client.isReady(), guilds: client.guilds.cache.size });
+                }
+
+                if (!isAuthorized(req, secret)) {
+                    return jsonResponse({ error: 'Unauthorized.' }, 401);
+                }
+
+                try {
+                    const body = ['POST', 'PATCH', 'PUT', 'DELETE'].includes(method)
+                        ? await readBunJsonBody(req)
+                        : {};
+                    const data = await dispatch(client, method, pathname, url.searchParams, body);
+                    return jsonResponse(data, 200);
+                } catch (error) {
+                    if (error instanceof HttpError) {
+                        return jsonResponse({ error: error.message }, error.status);
+                    }
+                    console.error('[api] handler error:', error);
+                    return jsonResponse({ error: 'Internal error.' }, 500);
+                }
+            },
+            error(err) {
+                console.error('[api] server error:', err);
+                return jsonResponse({ error: 'Internal error.' }, 500);
+            }
+        });
+        console.log(`[api] internal API listening on :${port} (Bun.serve)`);
+        // Wrap to expose a Node-like .close() so gracefulShutdown in index.js keeps working
+        const wrapped = {
+            close: (cb) => { try { server.stop(true); } catch {} cb?.(); },
+            stop: server.stop.bind(server),
+            _bunServer: server
+        };
+        return /** @type {any} */ (wrapped);
+    }
+
+    // ── Node fallback: http.createServer ────────────────────────────────
     const server = http.createServer(async (req, res) => {
         const url = new URL(req.url, 'http://internal');
         const pathname = url.pathname.replace(/\/+$/, '') || '/';
@@ -456,7 +539,7 @@ export function startApiServer(client) {
     });
 
     server.on('error', (err) => console.error('[api] server error:', err));
-    server.listen(port, () => console.log(`[api] internal API listening on :${port}`));
+    server.listen(port, () => console.log(`[api] internal API listening on :${port} (node:http)`));
     return server;
 }
 

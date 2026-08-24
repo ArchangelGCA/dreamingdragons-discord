@@ -4,24 +4,26 @@
   "description": "The Official Discord Bot of DreamingDragons",
   "main": "index.js",
   "scripts": {
-    "test": "node --test",
-    "deploy": "node deploy-commands.js",
-    "dev": "nodemon --delay 5 index.js",
-    "start": "node deploy-commands.js && node index.js"
+    "test": "bun test --timeout 15000",
+    "deploy": "bun deploy-commands.js",
+    "dev": "bun --watch index.js",
+    "start": "bun deploy-commands.js && bun index.js"
   },
   "keywords": [],
   "author": "",
   "license": "MIT",
   "type": "module",
   "engines": {
-    "node": ">=22"
+    "bun": ">=1.4.0"
   },
   "dependencies": {
     "discord.js": "^14.27.0",
-    "dotenv": "^17.4.2",
     "pocketbase": "^0.28.0"
   },
-  "devDependencies": {
-    "nodemon": "^3.1.14"
-  }
+  "trustedDependencies": [
+    "bufferutil",
+    "utf-8-validate",
+    "zlib-sync",
+    "erlpack"
+  ]
 }

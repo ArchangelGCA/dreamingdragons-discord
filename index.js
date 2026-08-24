@@ -1,5 +1,4 @@
 import {Client, GatewayIntentBits, Collection, Events, ActivityType, MessageFlags} from 'discord.js';
-import {config} from 'dotenv';
 import {getPb} from './utils/pocketbase.js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -13,9 +12,6 @@ import {replyComponents, replyError, replyInfo} from './utils/replies.js';
 import {startApiServer} from './api/server.js';
 import {autocompleteBuyChoices, autocompleteEquippedChoices} from './utils/economy.js';
 import {startStreakReminderLoop} from './utils/reminders.js';
-
-// Load environment variables
-config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

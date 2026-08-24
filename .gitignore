@@ -1,7 +1,8 @@
 # .gitignore
 
-# Node modules
+# Bun / Node modules
 node_modules/
+bun.lockb
 
 # Environment variables
 .env

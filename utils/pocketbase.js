@@ -1,8 +1,4 @@
 import PocketBase from 'pocketbase';
-import { config } from 'dotenv';
-
-// Load environment variables
-config();
 
 let pbInstance = null;
 let initializationPromise = null;

@@ -2,6 +2,7 @@
 # NOT ignored — the PocketBase image build (context = repo root) needs them.
 node_modules
 **/node_modules
+bun.lockb
 web
 pb_data
 .git
@@ -11,6 +12,7 @@ pb_data
 !.env.example
 *.log
 npm-debug.log*
+bun-debug.log*
 .idea
 .vscode
 *.md
