@@ -63,6 +63,13 @@ export interface PublicEntry {
 	/** Discord display name/avatar when the bot bridge can resolve them. */
 	name: string | null;
 	avatar: string | null;
+	cosmetics?: PublicCosmetics | null;
+}
+
+export interface EconomyStats {
+	streak: number;
+	bestStreak: number;
+	totalClaims: number;
 }
 
 export interface GuildStats {
@@ -147,6 +154,31 @@ async function guildStats(pb: PocketBase, guildId: string): Promise<GuildStats> 
 
 const PUBLIC_USER_FIELDS = 'user_id,xp,level';
 
+/** Batch-fetch equipped cosmetics for a set of userIds (gracefully degrades). */
+async function batchCosmetics(
+	pb: PocketBase,
+	guildId: string,
+	userIds: string[]
+): Promise<Map<string, PublicCosmetics>> {
+	const out = new Map<string, PublicCosmetics>();
+	if (userIds.length === 0) return out;
+	try {
+		// PocketBase filter: (user_id = "a" || user_id = "b" || ...) && guild_id = "g"
+		const or = userIds.map((id) => pb.filter('user_id = {:id}', { id })).join(' || ');
+		const filter = `guild_id = {:g} && (${or})`;
+		const economies = await pb.collection('user_economy').getFullList({
+			filter: pb.filter(filter, { g: guildId }),
+			fields: 'user_id,equipped'
+		});
+		for (const e of economies) {
+			out.set(e.user_id, resolveEquipped(e.equipped as Record<string, string> | null));
+		}
+	} catch {
+		// degrade to empty — no cosmetics overlay
+	}
+	return out;
+}
+
 /** A leaderboard page with resolved identities where possible. */
 async function leaderboardPage(
 	pb: PocketBase,
@@ -160,7 +192,10 @@ async function leaderboardPage(
 		fields: PUBLIC_USER_FIELDS
 	});
 
-	const members = await resolveMembers(guildId, list.items.map((u) => u.user_id));
+	const [members, cosmeticsMap] = await Promise.all([
+		resolveMembers(guildId, list.items.map((u) => u.user_id)),
+		batchCosmetics(pb, guildId, list.items.map((u) => u.user_id))
+	]);
 
 	const entries: PublicEntry[] = list.items.map((u, i) => {
 		const m = members[u.user_id];
@@ -170,7 +205,8 @@ async function leaderboardPage(
 			level: calculateLevelFromXp(u.xp),
 			xp: u.xp,
 			name: m?.displayName ?? null,
-			avatar: m?.avatar ?? null
+			avatar: m?.avatar ?? null,
+			cosmetics: cosmeticsMap.get(u.user_id) ?? null
 		};
 	});
 
@@ -182,7 +218,7 @@ async function leaderboardPage(
 	};
 }
 
-/** The public profile of one member — includes their own "last active" date. */
+/** The public profile of one member — includes their own "last active" date + economy stats. */
 async function publicProfile(
 	pb: PocketBase,
 	guildId: string,
@@ -191,6 +227,8 @@ async function publicProfile(
 	entry: PublicEntry;
 	lastActiveDay: string | null; // YYYY-MM-DD, day precision on purpose
 	cosmetics: PublicCosmetics;
+	economy: EconomyStats | null;
+	ownedCount: number;
 } | null> {
 	const res = await pb.collection('user_levels').getList(1, 1, {
 		filter: pb.filter('guild_id = {:g} && user_id = {:u}', { g: guildId, u: userId }),
@@ -213,17 +251,27 @@ async function publicProfile(
 		if (!Number.isNaN(d.getTime())) lastActiveDay = d.toISOString().slice(0, 10);
 	}
 
-	// Equipped cosmetics — the user_economy collection may not exist yet on old
-	// deployments, so degrade gracefully to no cosmetics.
+	// Economy + equipped cosmetics — degrade gracefully on old deployments.
 	let cosmetics: PublicCosmetics;
+	let economy: EconomyStats | null = null;
+	let ownedCount = 0;
 	try {
-		const economy = await pb.collection('user_economy').getList(1, 1, {
+		const econ = await pb.collection('user_economy').getList(1, 1, {
 			filter: pb.filter('guild_id = {:g} && user_id = {:u}', { g: guildId, u: userId }),
-			fields: 'equipped'
+			fields: 'equipped,daily_streak,best_streak,total_claims,cosmetics'
 		});
-		cosmetics = resolveEquipped(
-			economy.totalItems > 0 ? (economy.items[0].equipped as Record<string, string> | null) : null
-		);
+		if (econ.totalItems > 0) {
+			const rec2 = econ.items[0];
+			cosmetics = resolveEquipped(rec2.equipped as Record<string, string> | null);
+			economy = {
+				streak: rec2.daily_streak ?? 0,
+				bestStreak: rec2.best_streak ?? 0,
+				totalClaims: rec2.total_claims ?? 0
+			};
+			ownedCount = Array.isArray(rec2.cosmetics) ? rec2.cosmetics.length : 0;
+		} else {
+			cosmetics = resolveEquipped(null);
+		}
 	} catch {
 		cosmetics = resolveEquipped(null);
 	}
@@ -238,7 +286,9 @@ async function publicProfile(
 			avatar: m?.avatar ?? null
 		},
 		lastActiveDay,
-		cosmetics
+		cosmetics,
+		economy,
+		ownedCount
 	};
 }
 

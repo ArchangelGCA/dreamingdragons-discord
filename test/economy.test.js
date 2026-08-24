@@ -329,9 +329,9 @@ test('30-day perfect streak totals are within expected ranges', () => {
         xp += r.xp;
         gold += r.gold;
     }
-    // 30-day streak: ~4k-5k XP, ~2k-3k gold (milestones at 7,14,21,28)
+    // 30-day streak: ~4k-5.5k XP, ~3k-5k gold (milestones at 7,14,21,28) — welcome not counted here
     assert.ok(xp > 3000 && xp < 7000, `XP ${xp} out of expected range`);
-    assert.ok(gold > 1500 && gold < 4000, `gold ${gold} out of expected range`);
+    assert.ok(gold > 2500 && gold < 5500, `gold ${gold} out of expected range`);
 });
 
 test('first 7-day streak: welcome + base + milestone covers a colour', () => {

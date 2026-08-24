@@ -14,13 +14,14 @@
 
 	<h2>What this website stores</h2>
 	<p>
-		The Discord bot behind <strong>{siteName}</strong> keeps exactly one small record per chat-active member,
-		used for the leveling system:
+		The Discord bot behind <strong>{siteName}</strong> keeps minimal records per active member
+		for leveling and daily rewards:
 	</p>
 	<ul>
 		<li>your <strong>Discord user ID</strong> (a public snowflake),</li>
 		<li>your <strong>XP and level</strong>, derived from message activity in the server,</li>
-		<li>the <strong>day of your last counted message</strong>.</li>
+		<li>the <strong>day of your last counted message</strong>,</li>
+		<li>your <strong>daily streak / claims &amp; cosmetics</strong> — which flair, title, banner, frame, badge or name effect you've equipped (via <code>/daily</code> &amp; <code>/shop</code>). Gold balances are <em>never</em> shown publicly.</li>
 	</ul>
 	<p>
 		That's all. We do <strong>not</strong> store message contents, email addresses, IPs, or any tracking data.
@@ -28,8 +29,8 @@
 
 	<h2>Who can see it</h2>
 	<p>
-		The public pages of this website show your display name, avatar, level, rank and XP — the same
-		information any member of the server can already see by asking the bot in Discord. If the bot is
+		The public pages show your display name, avatar, level, rank, XP, daily streak &amp; equipped cosmetics — the same
+		information any member can already see via the bot in Discord (<code>/level</code>, <code>/balance</code>). Your public card and leaderboard rows showcase your style (colours, banners, frames, badges etc.) so cosmetics matter! If the bot is
 		offline, names appear only as anonymous placeholders (<em>Member #xxxx</em>).
 	</p>
 

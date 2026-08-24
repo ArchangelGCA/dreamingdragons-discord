@@ -5,11 +5,11 @@
  * Balance tuned to the default leveling config (20 XP/msg, 60s cooldown,
  * 100·n^1.5 curve):
  *   – A daily claim ≈ 5 messages' worth of XP at base.
- *   – A 30-day streak yields ~4 500 XP (~level 6½) and ~2 250 gold.
- *   – Gold from one week of perfect claims buys a colour (~500 gold).
- *   – Titles and frames need 2–6 weeks of streaks.
- *   – A free 5% jackpot (2× gold) keeps it exciting.
- *   – The welcome gift gives new users their first cosmetic immediately.
+ *   – A 30-day streak yields ~5 500 XP (~level 6–7) and ~4 300 gold (with milestones).
+ *   – Gold from one week of perfect claims buys a colour (~500 gold) — welcome gift accelerates first purchase.
+ *   – Flair & banners: 1–7 days; colours/titles: 1–10 days; frames/badges/effects: 2–5 weeks.
+ *   – A free 5% jackpot (2× gold) + 3-day grace keeps it exciting and forgiving.
+ *   – The welcome gift gives new users their first flair/badge immediately.
  */
 
 import {calculateLevelFromXp, invalidateUserCache, checkAndAwardRoles} from './leveling.js';
@@ -17,12 +17,12 @@ import {cumulativeXpForLevel} from './levelservice.js';
 
 // ── Published constants (importable by tests & UI) ───────────────────────
 export const DAILY_BASE_XP = 100;
-export const DAILY_BASE_GOLD = 50;
+export const DAILY_BASE_GOLD = 55;
 export const STREAK_BONUS_PER_DAY = 0.10;
 export const STREAK_BONUS_CAP = 1.0;
 export const MILESTONE_EVERY = 7;
-export const MILESTONE_GOLD = 100;
-export const WELCOME_GOLD = 150;
+export const MILESTONE_GOLD = 120;
+export const WELCOME_GOLD = 200;
 export const JACKPOT_CHANCE = 0.05;
 export const JACKPOT_MULTIPLIER = 2;
 export const GRACE_DAYS = 3;
@@ -36,52 +36,87 @@ export const XP_BUFFER = 10;
 //
 // +--------+--------+--------+--------+
 //  Slot    | id prefix | owned per … | slot constraint
-//  color   | color-…  | 1            | equipped overrides card accent
-//  title   | title-…  | 1            | displayed under name on profile
-//  frame   | frame-…  | 1            | CSS class on the profile card
-//  flair   | flair-…  | 1            | emoji next to the name
+//  color   | color-…  | 1            | equipped overrides card accent + progress bar + banner tint
+//  title   | title-…  | 1            | displayed under name on profile as pill
+//  frame   | frame-…  | 1            | CSS class on the profile card border / avatar ring
+//  flair   | flair-…  | 1            | emoji next to the name + leaderboard flair
+//  banner  | banner-… | 1            | top banner gradient / pattern on profile card
+//  badge   | badge-…  | 1            | small corner badge on card + leaderboard emblem
+//  effect  | effect-… | 1            | animated name text effect (shimmer, neon...)
 // +--------+--------+--------+--------+
 
 /**
- * @typedef {{id:string, slot:string, name:string, emoji:string, description:string, price:number, palette?:string[], accent?:number, cssClass?:string}} CatalogItem
+ * @typedef {{id:string, slot:string, name:string, emoji:string, description:string, price:number, palette?:string[], accent?:number, cssClass?:string, rarity?:string}} CatalogItem
  */
 
 /** @type {CatalogItem[]} */
 export const COSMETICS = [
-    // ── Colors ── (slot: color)
-    {id: 'color-crimson', slot: 'color', name: 'Crimson', emoji: '🟥', description: 'A fierce red gradient for your profile card.', price: 500, palette: ['#ef4444', '#b91c1c'], accent: 0xEF4444},
-    {id: 'color-amethyst', slot: 'color', name: 'Amethyst', emoji: '🟪', description: 'Royal purple tones.', price: 500, palette: ['#8b5cf6', '#6d28d9'], accent: 0x8B5CF6},
-    {id: 'color-azure', slot: 'color', name: 'Azure', emoji: '🟦', description: 'Bright ocean blues.', price: 500, palette: ['#38bdf8', '#0284c7'], accent: 0x38BDF8},
-    {id: 'color-rose', slot: 'color', name: 'Rose', emoji: '🩷', description: 'Warm pink tones.', price: 500, palette: ['#fb7185', '#be123c'], accent: 0xFB7185},
-    {id: 'color-gold', slot: 'color', name: 'Gold Shimmer', emoji: '🌟', description: 'Premium golden gradient.', price: 750, palette: ['#fbbf24', '#d97706'], accent: 0xFBBF24},
-    {id: 'color-aurora', slot: 'color', name: 'Aurora', emoji: '🌈', description: 'Teal-to-cyan — the rarest hue.', price: 900, palette: ['#34d399', '#22d3ee'], accent: 0x34D399},
+    // ── Colors ── (slot: color) — tint your card accent, progress bar, banner wash
+    {id: 'color-crimson', slot: 'color', name: 'Crimson', emoji: '🟥', description: 'A fierce red gradient for your profile card.', price: 500, palette: ['#ef4444', '#b91c1c'], accent: 0xEF4444, rarity: 'common'},
+    {id: 'color-amethyst', slot: 'color', name: 'Amethyst', emoji: '🟪', description: 'Royal purple tones.', price: 500, palette: ['#8b5cf6', '#6d28d9'], accent: 0x8B5CF6, rarity: 'common'},
+    {id: 'color-azure', slot: 'color', name: 'Azure', emoji: '🟦', description: 'Bright ocean blues.', price: 500, palette: ['#38bdf8', '#0284c7'], accent: 0x38BDF8, rarity: 'common'},
+    {id: 'color-rose', slot: 'color', name: 'Rose', emoji: '🩷', description: 'Warm pink tones.', price: 500, palette: ['#fb7185', '#be123c'], accent: 0xFB7185, rarity: 'common'},
+    {id: 'color-obsidian', slot: 'color', name: 'Obsidian', emoji: '⬛', description: 'Sleek graphite to slate — stealth mode.', price: 600, palette: ['#334155', '#0f172a'], accent: 0x334155, rarity: 'uncommon'},
+    {id: 'color-sunset', slot: 'color', name: 'Sunset', emoji: '🌅', description: 'Warm orange to rose — golden hour.', price: 650, palette: ['#f59e0b', '#ef4444'], accent: 0xF59E0B, rarity: 'uncommon'},
+    {id: 'color-mint', slot: 'color', name: 'Mint', emoji: '🌿', description: 'Fresh mint to teal.', price: 600, palette: ['#6ee7b7', '#0ea5e9'], accent: 0x6EE7B7, rarity: 'uncommon'},
+    {id: 'color-gold', slot: 'color', name: 'Gold Shimmer', emoji: '🌟', description: 'Premium golden gradient.', price: 750, palette: ['#fbbf24', '#d97706'], accent: 0xFBBF24, rarity: 'rare'},
+    {id: 'color-aurora', slot: 'color', name: 'Aurora', emoji: '🌈', description: 'Teal-to-cyan — the rarest hue.', price: 900, palette: ['#34d399', '#22d3ee'], accent: 0x34D399, rarity: 'epic'},
 
     // ── Titles ── (slot: title)
-    {id: 'title-dreamer', slot: 'title', name: 'Dreamer', emoji: '💭', description: 'You dream of dragons.', price: 400, palette: undefined},
-    {id: 'title-tamer', slot: 'title', name: 'Dragon Tamer', emoji: '🐉', description: 'You have earned your scales.', price: 600, palette: undefined},
-    {id: 'title-nightowl', slot: 'title', name: 'Night Owl', emoji: '🦉', description: 'Active when the moon is high.', price: 450, palette: undefined},
-    {id: 'title-streakmaster', slot: 'title', name: 'Streak Master', emoji: '🔥', description: 'Unbroken dedication.', price: 1200, palette: undefined},
-    {id: 'title-goldbaron', slot: 'title', name: 'Gold Baron', emoji: '👑', description: 'A fortune in gold.', price: 1500, palette: undefined},
-    {id: 'title-hero', slot: 'title', name: 'Hatched Hero', emoji: '🐣', description: 'It all began with an egg.', price: 500, palette: undefined},
+    {id: 'title-dreamer', slot: 'title', name: 'Dreamer', emoji: '💭', description: 'You dream of dragons.', price: 400, rarity: 'common'},
+    {id: 'title-nightowl', slot: 'title', name: 'Night Owl', emoji: '🦉', description: 'Active when the moon is high.', price: 450, rarity: 'common'},
+    {id: 'title-hero', slot: 'title', name: 'Hatched Hero', emoji: '🐣', description: 'It all began with an egg.', price: 500, rarity: 'common'},
+    {id: 'title-tamer', slot: 'title', name: 'Dragon Tamer', emoji: '🐉', description: 'You have earned your scales.', price: 600, rarity: 'uncommon'},
+    {id: 'title-voidwalker', slot: 'title', name: 'Voidwalker', emoji: '🌌', description: 'Steps between worlds.', price: 750, rarity: 'uncommon'},
+    {id: 'title-starbound', slot: 'title', name: 'Starbound', emoji: '☄️', description: 'Chasing constellations.', price: 850, rarity: 'rare'},
+    {id: 'title-streakmaster', slot: 'title', name: 'Streak Master', emoji: '🔥', description: 'Unbroken dedication.', price: 1200, rarity: 'rare'},
+    {id: 'title-eternal', slot: 'title', name: 'Eternal', emoji: '♾️', description: 'Beyond time itself.', price: 1500, rarity: 'epic'},
+    {id: 'title-goldbaron', slot: 'title', name: 'Gold Baron', emoji: '👑', description: 'A fortune in gold.', price: 1500, rarity: 'epic'},
 
     // ── Frames ── (slot: frame)
-    {id: 'frame-glow', slot: 'frame', name: 'Soft Glow', emoji: '✨', description: 'A gentle white glow around your card.', price: 1500, palette: undefined, cssClass: 'frame-glow'},
-    {id: 'frame-ember', slot: 'frame', name: 'Ember Glow', emoji: '🔥', description: 'Warm amber radiance.', price: 1800, palette: undefined, cssClass: 'frame-ember'},
-    {id: 'frame-rainbow', slot: 'frame', name: 'Rainbow', emoji: '🌈', description: 'An animated rainbow border.', price: 3000, palette: undefined, cssClass: 'frame-rainbow'},
+    {id: 'frame-glow', slot: 'frame', name: 'Soft Glow', emoji: '✨', description: 'A gentle white glow around your card.', price: 1200, cssClass: 'frame-glow', rarity: 'rare'},
+    {id: 'frame-ember', slot: 'frame', name: 'Ember Glow', emoji: '🔥', description: 'Warm amber radiance.', price: 1500, cssClass: 'frame-ember', rarity: 'rare'},
+    {id: 'frame-frost', slot: 'frame', name: 'Frost Pulse', emoji: '❄️', description: 'Icy blue pulse — winter bound.', price: 1800, cssClass: 'frame-frost', rarity: 'epic'},
+    {id: 'frame-neon', slot: 'frame', name: 'Neon Edge', emoji: '💡', description: 'Sharp cyan-magenta neon border.', price: 2000, cssClass: 'frame-neon', rarity: 'epic'},
+    {id: 'frame-void', slot: 'frame', name: 'Void Rim', emoji: '🌑', description: 'Dark pulsating void energy.', price: 2500, cssClass: 'frame-void', rarity: 'legendary'},
+    {id: 'frame-rainbow', slot: 'frame', name: 'Rainbow', emoji: '🌈', description: 'An animated rainbow border.', price: 3000, cssClass: 'frame-rainbow', rarity: 'legendary'},
 
     // ── Flair ── (slot: flair)
-    {id: 'flair-dragon', slot: 'flair', name: 'Dragon', emoji: '🐉', description: 'Show your dragon spirit.', price: 200, palette: undefined},
-    {id: 'flair-fire', slot: 'flair', name: 'Fire', emoji: '🔥', description: 'Burning bright.', price: 300, palette: undefined},
-    {id: 'flair-star', slot: 'flair', name: 'Star', emoji: '⭐', description: 'Shine on.', price: 250, palette: undefined},
-    {id: 'flair-diamond', slot: 'flair', name: 'Diamond', emoji: '💎', description: 'Rare and precious.', price: 800, palette: undefined},
-    {id: 'flair-moon', slot: 'flair', name: 'Moon', emoji: '🌙', description: 'Graceful and calm.', price: 350, palette: undefined},
+    {id: 'flair-dragon', slot: 'flair', name: 'Dragon', emoji: '🐉', description: 'Show your dragon spirit.', price: 150, rarity: 'common'},
+    {id: 'flair-star', slot: 'flair', name: 'Star', emoji: '⭐', description: 'Shine on.', price: 180, rarity: 'common'},
+    {id: 'flair-fire', slot: 'flair', name: 'Fire', emoji: '🔥', description: 'Burning bright.', price: 220, rarity: 'common'},
+    {id: 'flair-moon', slot: 'flair', name: 'Moon', emoji: '🌙', description: 'Graceful and calm.', price: 280, rarity: 'common'},
+    {id: 'flair-heart', slot: 'flair', name: 'Heart', emoji: '💖', description: 'Lead with heart.', price: 320, rarity: 'uncommon'},
+    {id: 'flair-sparkles', slot: 'flair', name: 'Sparkles', emoji: '💫', description: 'Pure sparkle energy.', price: 350, rarity: 'uncommon'},
+    {id: 'flair-ghost', slot: 'flair', name: 'Ghost', emoji: '👻', description: 'Ethereal and playful.', price: 400, rarity: 'uncommon'},
+    {id: 'flair-diamond', slot: 'flair', name: 'Diamond', emoji: '💎', description: 'Rare and precious.', price: 650, rarity: 'rare'},
+
+    // ── Banners ── (slot: banner) — top banner of the profile card
+    {id: 'banner-midnight', slot: 'banner', name: 'Midnight Veil', emoji: '🌌', description: 'Starry midnight navy with subtle sparkle.', price: 400, palette: ['#0f172a', '#1e293b'], cssClass: 'banner-midnight', rarity: 'common'},
+    {id: 'banner-ocean', slot: 'banner', name: 'Ocean Depths', emoji: '🌊', description: 'Deep teal to ocean blue.', price: 500, palette: ['#0e7490', '#0f766e'], cssClass: 'banner-ocean', rarity: 'common'},
+    {id: 'banner-sunset', slot: 'banner', name: 'Sunset Blaze', emoji: '🌇', description: 'Warm sunset orange to pink.', price: 600, palette: ['#f59e0b', '#ec4899'], cssClass: 'banner-sunset', rarity: 'uncommon'},
+    {id: 'banner-forest', slot: 'banner', name: 'Forest Canopy', emoji: '🌲', description: 'Emerald to forest green.', price: 600, palette: ['#059669', '#065f46'], cssClass: 'banner-forest', rarity: 'uncommon'},
+    {id: 'banner-nebula', slot: 'banner', name: 'Nebula', emoji: '☄️', description: 'Violet-cyan cosmic swirl.', price: 800, palette: ['#7c3aed', '#06b6d4'], cssClass: 'banner-nebula', rarity: 'rare'},
+    {id: 'banner-dragonfire', slot: 'banner', name: 'Dragonfire', emoji: '🐉', description: 'Crimson to molten gold — dragon forged.', price: 1000, palette: ['#dc2626', '#f59e0b'], cssClass: 'banner-dragonfire', rarity: 'epic'},
+
+    // ── Badges ── (slot: badge) — corner emblem on card + leaderboard icon
+    {id: 'badge-shield', slot: 'badge', name: 'Guardian Shield', emoji: '🛡️', description: 'Steadfast protector.', price: 300, rarity: 'common'},
+    {id: 'badge-wings', slot: 'badge', name: 'Wings', emoji: '🪽', description: 'Take flight.', price: 450, rarity: 'uncommon'},
+    {id: 'badge-crown', slot: 'badge', name: 'Crown', emoji: '👑', description: 'Regal authority.', price: 600, rarity: 'uncommon'},
+    {id: 'badge-gem', slot: 'badge', name: 'Gem Crest', emoji: '💎', description: 'Flawless rarity.', price: 800, rarity: 'rare'},
+    {id: 'badge-starcrest', slot: 'badge', name: 'Star Crest', emoji: '🌟', description: 'Celestial excellence.', price: 1000, rarity: 'epic'},
+
+    // ── Effects ── (slot: effect) — animated name styling
+    {id: 'effect-shimmer', slot: 'effect', name: 'Shimmer', emoji: '✨', description: 'Subtle gliding shine across your name.', price: 1000, cssClass: 'effect-shimmer', rarity: 'rare'},
+    {id: 'effect-neon', slot: 'effect', name: 'Neon Pulse', emoji: '💡', description: 'Soft pulsing neon glow.', price: 1500, cssClass: 'effect-neon', rarity: 'epic'},
+    {id: 'effect-holo', slot: 'effect', name: 'Holographic', emoji: '🌈', description: 'Animated rainbow gradient text.', price: 2000, cssClass: 'effect-holo', rarity: 'legendary'},
 ];
 
 /** All unique slot names, in display order. */
-export const SLOTS = ['color', 'title', 'frame', 'flair'];
+export const SLOTS = ['color', 'title', 'banner', 'frame', 'flair', 'badge', 'effect'];
 
-const SLOT_EMOJI = {color: '🎨', title: '🏷️', frame: '🖼️', flair: '💫'};
-const SLOT_LABEL = {color: 'Colours', title: 'Titles', frame: 'Frames', flair: 'Flair'};
+const SLOT_EMOJI = {color: '🎨', title: '🏷️', banner: '🏞️', frame: '🖼️', flair: '💫', badge: '🎖️', effect: '✨'};
+const SLOT_LABEL = {color: 'Colours', title: 'Titles', banner: 'Banners', frame: 'Frames', flair: 'Flair', badge: 'Badges', effect: 'Effects'};
 
 /** @type {Map<string, CatalogItem>} */
 const byId = new Map(COSMETICS.map((i) => [i.id, i]));

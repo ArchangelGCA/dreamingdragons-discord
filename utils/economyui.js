@@ -3,9 +3,12 @@
  * /balance wallet card, the /shop catalog and the /inventory card. Like
  * levelui.js these builders are PURE (no I/O) so they can be unit-tested
  * without a Discord connection — commands gather the data, builders render it.
+ *
+ * Polished to feel rewarding: reward breakdowns, streak progress, affordability
+ * hints, rarity tags, and celebratory copy.
  */
 import {Colors, container, formatInt, progressBar, separator, text, thumbnailSection} from './ui.js';
-import {MILESTONE_EVERY, nextMilestoneInfo, slotEmoji, slotLabel} from './economy.js';
+import {COSMETICS, MILESTONE_EVERY, nextMilestoneInfo, slotEmoji, slotLabel} from './economy.js';
 
 /** Human "Xh Ym" from a seconds countdown. */
 export function humanDuration(totalSeconds) {
@@ -38,8 +41,17 @@ function streakLine({streak, best, claims}) {
 function milestoneProgress(streak) {
     const into = streak % MILESTONE_EVERY;
     const info = nextMilestoneInfo(streak);
+    if (!info) return '';
     const pct = into / MILESTONE_EVERY;
-    return `\`${progressBar(pct, 14)}\`  **${info.inDays}** day${info.inDays === 1 ? '' : 's'} to milestone ${info.next}`;
+    return `\`${progressBar(pct, 14)}\`  **${info.inDays}** day${info.inDays === 1 ? '' : 's'} to milestone **${info.next}**  ·  +${formatInt(info.next / MILESTONE_EVERY * 120)}🪙 bonus`;
+}
+
+function rarityTag(price) {
+    if (price >= 2500) return '💎 Legendary';
+    if (price >= 1500) return '🟣 Epic';
+    if (price >= 800) return '🔵 Rare';
+    if (price >= 400) return '🟢 Uncommon';
+    return '⚪ Common';
 }
 
 /**
@@ -64,6 +76,8 @@ export function buildDailyCard(p) {
 
     if (p.already) {
         const at = laterUnix(new Date(), p.secondsUntilMidnight);
+        const streak = p.streak ?? p.newStreak ?? 0;
+        const nextInfo = streak ? nextMilestoneInfo(streak) : null;
         return container(
             accent,
             thumbnailSection([
@@ -71,44 +85,58 @@ export function buildDailyCard(p) {
                 `**Already claimed today!**`
             ], p.avatarUrl ?? null),
             separator(),
-            text(`Come back in **${humanDuration(p.secondsUntilMidnight)}** — <t:${at}:R>`)
+            text(`Come back in **${humanDuration(p.secondsUntilMidnight)}** — <t:${at}:R>`),
+            ...(nextInfo ? [separator({divider:false}), text(`⏳ Next milestone **${nextInfo.next}** in **${nextInfo.inDays}** day${nextInfo.inDays===1?'':'s'}`)] : []),
+            separator({divider:false}),
+            text(`-# Keep that streak alive — 3-day grace saves you if you miss a day!`)
         );
     }
 
     const {reward} = p;
+    const baseGold = Math.round(reward.gold - (reward.milestoneGold||0) - (reward.welcomeGold||0) * (reward.jackpot? 1/2 : 1));
+    // Breakdown: streak bonus portion
+    const streakBonusGold = reward.gold - (reward.milestoneGold||0) - (reward.welcomeGold||0) - Math.round(55 * 1); // rough; simpler display via multiplier
     const children = [
         thumbnailSection([
             `### 🎁 Daily reward claimed!`,
-            `**+${formatInt(reward.xp)} XP**  ·  **+${formatInt(reward.gold)} 🪙**`
+            `**+${formatInt(reward.xp)} XP**  ·  **+${formatInt(reward.gold)} 🪙**` + (reward.multiplier > 1 ? `  ·  **×${reward.multiplier.toFixed(2)}** streak` : '')
         ], p.avatarUrl ?? null),
         separator()
     ];
 
-    if (reward.welcomeGold > 0) {
-        children.push(text(`🎉 **+${formatInt(reward.welcomeGold)} 🪙 welcome gift** — your first ever claim!`));
-    }
-    if (reward.milestoneGold > 0) {
-        children.push(text(`🏆 **${formatInt(p.newStreak)}-day milestone!** +${formatInt(reward.milestoneGold)} 🪙 bonus`));
-    }
-    if (reward.jackpot) {
-        children.push(text(`💥 **JACKPOT!** Gold doubled`));
-    }
+    // Reward breakdown
+    const breakdown = [];
+    if (reward.multiplier > 1) breakdown.push(`⚡ Streak **×${reward.multiplier.toFixed(2)}** bonus applied`);
+    if (reward.welcomeGold > 0) breakdown.push(`🎉 **+${formatInt(reward.welcomeGold)} 🪙 welcome gift** — your first ever claim! Instant flair unlocked!`);
+    if (reward.milestoneGold > 0) breakdown.push(`🏆 **${formatInt(p.newStreak)}-day milestone!** +${formatInt(reward.milestoneGold)} 🪙 bonus`);
+    if (reward.jackpot) breakdown.push(`💥 **JACKPOT!** Gold doubled — lucky day!`);
+    if (breakdown.length) children.push(text(breakdown.join('\n')));
+
     if (p.rescued) {
-        children.push(text(`🚨 You came back just in time — your **${formatInt(p.newStreak)}**-day streak lives on!`));
+        children.push(text(`🚨 You came back just in time — your **${formatInt(p.newStreak)}**-day streak lives on! (grace saved you)`));
     }
     if (p.brokenFrom) {
-        children.push(text(`😢 Your **${formatInt(p.brokenFrom)}**-day streak broke — claiming restarts it at **1** day.`));
+        children.push(text(`😢 Your **${formatInt(p.brokenFrom)}**-day streak broke — claiming restarts it at **1** day. Build it again!`));
     }
     if (p.leveledUp) {
         children.push(text(`## 🎉 Level up! You reached **level ${formatInt(p.newLevel)}**`));
+    }
+
+    // Encouraging next-step hint based on gold balance
+    let affordHint = '';
+    if (p.newGold != null) {
+        if (p.newGold >= 300 && p.newGold < 500) affordHint = `💡 You can afford a **flair** or **badge** now — check \`/shop\`!`;
+        else if (p.newGold >= 500 && p.newGold < 1200) affordHint = `💡 You can grab a **colour** or **banner** — \`/shop\` → \`/buy\` → \`/equip\`!`;
+        else if (p.newGold >= 1200) affordHint = `💡 Enough for a **frame** or **title** — style your profile card to shine on the leaderboard!`;
     }
 
     children.push(
         separator(),
         text(streakLine({streak: p.newStreak, best: p.bestStreak, claims: p.totalClaims})),
         text(milestoneProgress(p.newStreak)),
+        ...(affordHint ? [text(affordHint)] : []),
         separator({divider: false}),
-        text(`💼 New balance: **${formatInt(p.newGold)} 🪙**`)
+        text(`💼 New balance: **${formatInt(p.newGold)} 🪙**  ·  Next claim <t:${laterUnix(new Date(), p.secondsUntilMidnight)}:R>`)
     );
 
     return container(accent, ...children);
@@ -128,10 +156,20 @@ export function buildDailyCard(p) {
  */
 export function buildBalanceCard({displayName, avatarUrl, accentColor, gold, streak, bestStreak, claims, equipped}) {
     const equippedBits = [];
-    for (const slot of Object.keys(equipped || {})) {
-        const item = equipped[slot];
-        if (item) equippedBits.push(`${item.emoji} ${item.name}`);
+    const slotOrder = ['color','title','banner','frame','flair','badge','effect'];
+    for (const slot of slotOrder) {
+        const item = equipped?.[slot];
+        if (item) equippedBits.push(`${slotEmoji(slot)} ${item.emoji} **${item.name}**`);
     }
+    // Fallback for any extra slots
+    for (const slot of Object.keys(equipped || {})) {
+        if (!slotOrder.includes(slot)) {
+            const item = equipped[slot];
+            if (item) equippedBits.push(`${item.emoji} ${item.name}`);
+        }
+    }
+
+    const nextMilestone = streak ? nextMilestoneInfo(streak) : null;
 
     const children = [
         thumbnailSection([
@@ -141,9 +179,10 @@ export function buildBalanceCard({displayName, avatarUrl, accentColor, gold, str
         separator(),
         text(`**${formatInt(gold || 0)}** 🪙 gold`),
         text(streakLine({streak, best: bestStreak, claims})),
-        text(`🎒 Equipped: ${equippedBits.length > 0 ? equippedBits.join(' · ') : '_nothing yet_'}`),
+        ...(nextMilestone ? [text(`⏭️ Next milestone **${nextMilestone.next}** in **${nextMilestone.inDays}** day${nextMilestone.inDays===1?'':'s'} — +${formatInt(nextMilestone.next / MILESTONE_EVERY * 120)}🪙`)] : []),
+        text(`🎒 Equipped: ${equippedBits.length > 0 ? '\n' + equippedBits.join('\n') : '_nothing yet — style your card with \\`/shop\\`!_'}`),
         separator({divider: false}),
-        text('-# \`/daily\` to claim  ·  \`/shop\` to browse  ·  \`/equip\` to style your card')
+        text('-# `/daily` to claim  ·  `/shop` to browse  ·  `/equip` to style your card  ·  Flair from 150🪙, colours from 500🪙')
     ];
 
     return container(accentColor || Colors.BRAND, ...children);
@@ -153,8 +192,13 @@ export function buildBalanceCard({displayName, avatarUrl, accentColor, gold, str
  * One catalog section of shop cards.
  * @param {string} placeholder
  */
-function itemLine(item, owned) {
-    return `${item.emoji} **${item.name}** — ${formatInt(item.price)} 🪙${owned ? '  ✅' : ''}  ·  ${item.description}`;
+function itemLine(item, owned, balance) {
+    const ownedMark = owned ? '  ✅ Owned' : '';
+    const canAfford = balance >= item.price;
+    const affordMark = owned ? '' : (canAfford ? '  🟢' : `  🔴 need ${formatInt(item.price - balance)} more`);
+    const rarity = rarityTag(item.price);
+    const preview = item.palette ? `  \`${item.palette[0]}→${item.palette[1]}\`` : '';
+    return `${item.emoji} **${item.name}** — ${formatInt(item.price)} 🪙${ownedMark}${affordMark}  ·  ${item.description}  ·  _${rarity}_${preview}`;
 }
 
 /**
@@ -165,22 +209,27 @@ function itemLine(item, owned) {
  * @param {Array<{slot:string, items:Array}>} p.groups slot -> items
  */
 export function buildShopCard({balance, owned, groups}) {
+    const ownedCount = owned.size;
+    const totalItems = groups.reduce((s,g)=>s+g.items.length,0);
+    const affordable = groups.flatMap(g=>g.items).filter(i=>!owned.has(i.id) && i.price <= balance).length;
     const children = [
         thumbnailSection([
             `## 🛒 DreamingDragons Shop`,
-            `Your balance: **${formatInt(balance || 0)} 🪙**`
+            `Your balance: **${formatInt(balance || 0)} 🪙**  ·  ${ownedCount}/${totalItems} owned${affordable?`  ·  **${affordable}** you can afford now!`:''}`
         ], null),
         separator()
     ];
 
     for (const {slot, items} of groups) {
-        children.push(text(`### ${slotEmoji(slot)} ${slotLabel(slot)}`));
-        children.push(text(items.map((i) => itemLine(i, owned.has(i.id))).join('\n')));
+        const slotOwned = items.filter(i=>owned.has(i.id)).length;
+        children.push(text(`### ${slotEmoji(slot)} ${slotLabel(slot)}  —  ${slotOwned}/${items.length}`));
+        children.push(text(items.map((i) => itemLine(i, owned.has(i.id), balance)).join('\n')));
     }
 
     children.push(
         separator(),
-        text('-# Buy with \`/buy\`  ·  equip with \`/equip\`  ·  all cosmetics show on your public profile card')
+        text(`-# 🟢 affordable · 🔴 need more gold · Buy with \`/buy\`  ·  equip with \`/equip\`  ·  all cosmetics show on your public profile card & leaderboard`),
+        text(`-# 💡 Tip: Day 1 welcome = **200🪙** → instant flair! • A week ≈ **800🪙** → colour/banner • Two weeks ≈ **1 800🪙** → frame`)
     );
 
     return container(Colors.BRAND, ...children);
@@ -194,34 +243,63 @@ export function buildShopCard({balance, owned, groups}) {
  * @param {Array<object>} p.ownedItems resolved catalog items owned
  */
 export function buildInventoryCard({balance, equipped, ownedItems}) {
+    const slotOrder = ['color','title','banner','frame','flair','badge','effect'];
     const equippedBits = [];
+    for (const slot of slotOrder) {
+        const item = equipped?.[slot];
+        if (item) equippedBits.push(`${slotEmoji(slot)} ${item.emoji} **${item.name}** (${slotLabel(slot)})`);
+    }
+    // any extra
     for (const slot of Object.keys(equipped || {})) {
-        const item = equipped[slot];
-        if (item) equippedBits.push(`${item.emoji} **${item.name}** (${slotLabel(slot)})`);
+        if (!slotOrder.includes(slot) && equipped[slot]) equippedBits.push(`${equipped[slot].emoji} **${equipped[slot].name}** (${slotLabel(slot)})`);
     }
 
     const owned = ownedItems || [];
-    const notEquipped = owned.filter((i) => {
-        for (const slot of Object.keys(equipped || {})) {
-            if (equipped[slot]?.id === i.id) return false;
+    // Group owned not equipped by slot for nicer display
+    const bySlot = {};
+    for (const slot of slotOrder) bySlot[slot]=[];
+    for (const i of owned) {
+        if (!bySlot[i.slot]) bySlot[i.slot]=[];
+        // skip equipped
+        let isEquipped = false;
+        for (const s of Object.keys(equipped || {})) if (equipped[s]?.id === i.id) isEquipped = true;
+        if (!isEquipped) bySlot[i.slot].push(i);
+    }
+
+    const notEquippedLines = [];
+    for (const slot of slotOrder) {
+        const list = bySlot[slot];
+        if (list.length) {
+            notEquippedLines.push(`**${slotEmoji(slot)} ${slotLabel(slot)}**`);
+            for (const it of list) notEquippedLines.push(`${it.emoji} **${it.name}** — \`/equip ${it.id}\``);
         }
-        return true;
+    }
+    // fallback any leftover
+    const leftover = owned.filter(i=>{
+        for (const slot of slotOrder) if (bySlot[slot].includes(i)) return false;
+        let eq=false; for (const s of Object.keys(equipped||{})) if (equipped[s]?.id===i.id) eq=true;
+        return !eq;
     });
+    for (const it of leftover) notEquippedLines.push(`${it.emoji} **${it.name}** (${slotLabel(it.slot)}) — \`/equip ${it.id}\``);
+
+    const totalOwned = owned.length;
+    const totalCatalog = COSMETICS.length;
 
     const children = [
         thumbnailSection([
             `## 🎒 Inventory`,
-            `Balance: **${formatInt(balance || 0)} 🪙**`
+            `Balance: **${formatInt(balance || 0)} 🪙**  ·  ${totalOwned}/${totalCatalog} collected`
         ], null),
         separator(),
-        text(`### ✅ Equipped`),
+        text(`### ✅ Equipped (${equippedBits.length}/7 slots)`),
         text(equippedBits.length > 0 ? equippedBits.join('\n') : '_Nothing equipped yet — use \`/equip\`._'),
-        text(`### 🗃️ Owned (not equipped)`),
-        text(notEquipped.length > 0
-            ? notEquipped.map((i) => `${i.emoji} **${i.name}** (${slotLabel(i.slot)}) — \`/equip ${i.id}\``).join('\n')
-            : '_Nothing here yet. Head to \`/shop\` to spend your gold._'),
+        text(`### 🗃️ Owned (not equipped) — ${owned.length - equippedBits.length} items`),
+        text(notEquippedLines.length > 0
+            ? notEquippedLines.join('\n')
+            : '_Nothing here yet. Head to \`/shop\` to spend your gold — flair starts at 150🪙!_'),
         separator({divider: false}),
-        text('-# \`/buy\` new cosmetics  ·  \`/equip\` to equip or remove')
+        text(`-# \`/buy\` new cosmetics  ·  \`/equip\` to equip or remove  ·  Style appears on your public card → https://your-site/u/<your-id>`),
+        text(`-# ${progressBar(totalOwned/totalCatalog, 14)}  **${Math.round(totalOwned/totalCatalog*100)}%** collection`)
     ];
 
     return container(Colors.BRAND, ...children);
