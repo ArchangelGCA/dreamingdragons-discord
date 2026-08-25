@@ -14,12 +14,13 @@ USER bun
 COPY --chown=bun:bun package.json bun.lock* ./
 RUN bun install --frozen-lockfile --production && bun pm cache rm || true
 
-# Copy bot source.
+# Copy bot source (+ shared catalog — single source for cosmetics).
 COPY --chown=bun:bun index.js deploy-commands.js ./
 COPY --chown=bun:bun commands ./commands
 COPY --chown=bun:bun utils ./utils
 COPY --chown=bun:bun api ./api
 COPY --chown=bun:bun init ./init
+COPY --chown=bun:bun shared ./shared
 
 # Deploys slash commands then starts the bot (see package.json "start").
 CMD ["bun", "run", "start"]

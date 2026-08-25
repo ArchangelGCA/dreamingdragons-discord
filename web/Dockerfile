@@ -1,17 +1,18 @@
-# SvelteKit admin dashboard — Bun 1.4 native with svelte-adapter-bun.
-# Build AND runtime use Bun's JavaScriptCore (JSC) via `bun --bun`, not Node's V8:
-# - Vite (Rolldown) JS orchestration runs on Bun (`bun --bun run build` forces JSC
-#   instead of the oven/bun image's /usr/local/bun-node-fallback-bin/node shim)
-# - Runtime uses `svelte-adapter-bun` which emits a native `Bun.serve` server
-#   (uWebSockets) instead of Node's `http.createServer`+`polka` — ~2-3x faster
-#   than adapter-node via node:http compat, lower memory, native WebSocket.
+# SvelteKit admin/dashboard + public site — Bun 1.4 native with svelte-adapter-bun.
+# Build AND runtime use Bun's JavaScriptCore (JSC) via `bun --bun`, not Node's V8.
+# Context is repo root (see docker-compose.yml) so shared/cosmetics.json is available.
 FROM oven/bun:1.4-alpine AS build
 WORKDIR /app
 
-COPY package.json bun.lock* ./
+# web deps (context = repo root, so prefix with web/)
+COPY web/package.json web/bun.lock* ./
 RUN bun install --frozen-lockfile
 
-COPY . .
+# web source
+COPY web/. .
+# shared catalog — single source (shared/cosmetics.json) lives at /shared for the
+# relative import `../../../shared/cosmetics.json` from src/lib/cosmetics.ts
+COPY shared /shared
 # Force Bun runtime for Vite (see above)
 RUN bun --bun run build
 

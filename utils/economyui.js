@@ -7,6 +7,7 @@
  * Polished to feel rewarding: reward breakdowns, streak progress, affordability
  * hints, rarity tags, and celebratory copy.
  */
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import {Colors, container, formatInt, progressBar, separator, text, thumbnailSection} from './ui.js';
 import {COSMETICS, MILESTONE_EVERY, nextMilestoneInfo, slotEmoji, slotLabel} from './economy.js';
 
@@ -217,8 +218,9 @@ function compactItemLine(item, owned, balance) {
  * @param {number} p.balance caller's gold
  * @param {Set<string>} p.owned owned item ids for the caller
  * @param {Array<{slot:string, items:Array}>} p.groups slot -> items
+ * @param {string|null} [p.shopUrl] optional web preview URL (from PUBLIC_URL) — adds a Link button
  */
-export function buildShopCard({balance, owned, groups}) {
+export function buildShopCard({balance, owned, groups, shopUrl}) {
     const MAX_TOTAL = 4000;
     const ownedCount = owned.size;
     const totalItems = groups.reduce((s,g)=>s+g.items.length,0);
@@ -332,6 +334,24 @@ export function buildShopCard({balance, owned, groups}) {
     children.push(text(footer1));
     children.push(text(footer2));
     if (footerOverviewHint) children.push(text(footerOverviewHint));
+
+    // Web preview — quick link from Discord to the live shop (deep-linked if filtered).
+    // When PUBLIC_URL is configured, add a Link button so users can jump to the
+    // browser preview without leaving Discord. Fallback is a markdown link line.
+    if (shopUrl) {
+        try {
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setStyle(ButtonStyle.Link)
+                    .setURL(shopUrl)
+                    .setLabel(isSingleCategory ? `Preview ${groups[0]?.slot ?? ''} in browser` : 'Preview all in browser')
+            );
+            children.push(row);
+            children.push(text(`-# 🔗 Web preview: ${shopUrl}`));
+        } catch {
+            children.push(text(`-# 🔗 Web preview: ${shopUrl}`));
+        }
+    }
 
     return container(Colors.BRAND, ...children);
 }

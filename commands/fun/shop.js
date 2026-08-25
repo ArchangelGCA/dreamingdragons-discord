@@ -39,7 +39,14 @@ export default {
                 groups.push({slot, items: allGroups[slot]});
             }
 
-            const card = buildShopCard({balance, owned, groups});
+            const publicBase = (process.env.PUBLIC_URL || process.env.ORIGIN || '').replace(/\/+$/, '');
+            const params = new URLSearchParams();
+            if (interaction.guildId) params.set('g', interaction.guildId);
+            if (category) params.set('slot', category);
+            const qs = params.toString();
+            const shopUrl = publicBase ? `${publicBase}/shop${qs ? `?${qs}` : ''}` : null;
+
+            const card = buildShopCard({balance, owned, groups, shopUrl});
             await interaction.editReply({components: [card], flags: CV2});
         } catch (error) {
             console.error('Error loading shop:', error);

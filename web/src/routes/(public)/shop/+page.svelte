@@ -3,6 +3,9 @@
 	import { COSMETICS, SLOTS, rarityFor } from '$lib/cosmetics';
 	import type { CosmeticDef } from '$lib/cosmetics';
 	import { animateIn } from '$lib/actions/animate';
+	import { page } from '$app/state';
+	import { replaceState } from '$app/navigation';
+	import { onMount } from 'svelte';
 
 	let { data } = $props();
 	const pub = $derived(data.pub);
@@ -39,13 +42,101 @@
 		effect: 'Animated styling on your display name.'
 	};
 
-	let search = $state('');
-	let activeSlot = $state<(typeof SLOTS)[number] | 'all'>('all');
-	let preview = $state<Record<string, string>>({});
+	// ── URL-driven state (deep-link support for Discord) ───────────────
+	// Discord's /shop button links to /shop?slot=<category> ; individual items
+	// link to /shop?item=<id> (or ?slot= + ?item=). We keep ?g= for guild and
+	// ?q= for search, all shareable.
+	function initialSlot(): (typeof SLOTS)[number] | 'all' {
+		const raw = page.url.searchParams.get('slot') ?? page.url.searchParams.get('category');
+		if (raw && (SLOTS as readonly string[]).includes(raw)) return raw as (typeof SLOTS)[number];
+		return 'all';
+	}
+	function initialPreview(): Record<string, string> {
+		const raw = page.url.searchParams.get('item') ?? page.url.searchParams.get('preview');
+		if (!raw) return {};
+		const ids = raw.split(',').map((s) => s.trim()).filter(Boolean);
+		const out: Record<string, string> = {};
+		for (const id of ids) {
+			const found = COSMETICS.find((c) => c.id === id);
+			if (found) out[found.slot] = found.id;
+		}
+		return out;
+	}
+
+	let search = $state(page.url.searchParams.get('q') ?? page.url.searchParams.get('search') ?? '');
+	let activeSlot = $state<(typeof SLOTS)[number] | 'all'>(initialSlot());
+	let preview = $state<Record<string, string>>(initialPreview());
+	let copiedId = $state<string | null>(null);
 
 	// quick helpers
 	function rarity(item: CosmeticDef) {
 		return rarityFor(item.price);
+	}
+
+	function buildShopUrl(slot: string | null, itemId: string | null, q: string | null): string {
+		const params = new URLSearchParams(page.url.searchParams);
+		if (slot && slot !== 'all') params.set('slot', slot);
+		else params.delete('slot');
+		params.delete('category');
+		if (q && q.trim()) params.set('q', q.trim());
+		else params.delete('q');
+		if (itemId) params.set('item', itemId);
+		else params.delete('item');
+		params.delete('preview');
+		const qs = params.toString();
+		return qs ? `${page.url.pathname}?${qs}` : page.url.pathname;
+	}
+
+	function syncUrl() {
+		if (typeof window === 'undefined') return;
+		const url = buildShopUrl(activeSlot, Object.values(preview)[0] ?? null, search);
+		// avoid loop: only replace if different
+		const current = `${page.url.pathname}?${page.url.searchParams.toString()}`;
+		const target = url.includes('?') ? url : `${page.url.pathname}`;
+		if (current !== target && current !== `${page.url.pathname}?` && target !== current) {
+			replaceState(target, {});
+		}
+	}
+
+	// Keep URL in sync when filters/preview change (search debounced)
+	let searchDebounce: ReturnType<typeof setTimeout> | null = null;
+	$effect(() => {
+		// track deps
+		void activeSlot;
+		void preview;
+		syncUrl();
+	});
+	$effect(() => {
+		void search;
+		if (searchDebounce) clearTimeout(searchDebounce);
+		searchDebounce = setTimeout(syncUrl, 400);
+		return () => {
+			if (searchDebounce) clearTimeout(searchDebounce);
+		};
+	});
+
+	onMount(() => {
+		const item = page.url.searchParams.get('item')?.split(',')[0]?.trim();
+		if (item) {
+			const el = document.getElementById(`item-${item}`);
+			if (el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 120);
+		}
+	});
+
+	async function shareItem(item: CosmeticDef, e?: Event) {
+		e?.stopPropagation();
+		e?.preventDefault();
+		const url = `${window.location.origin}${buildShopUrl(item.slot, item.id, null)}`;
+		try {
+			await navigator.clipboard.writeText(url);
+			copiedId = item.id;
+			setTimeout(() => (copiedId = null), 1600);
+		} catch {
+			window.prompt('Copy link:', url);
+		}
+		// also set preview to this item for immediate feedback
+		preview = { ...preview, [item.slot]: item.id };
+		activeSlot = item.slot as (typeof SLOTS)[number];
 	}
 
 	const filtered = $derived.by(() => {
@@ -256,14 +347,17 @@
 							{#each items as item (item.id)}
 								{@const r = rarity(item)}
 								{@const selected = isSelected(item)}
-								<button
-									type="button"
+								<div
+									id={`item-${item.id}`}
 									class="shop-card card"
 									class:selected
 									class:frame-card={item.slot === 'frame'}
-									onclick={() => togglePreview(item)}
+									role="button"
+									tabindex="0"
 									aria-pressed={selected}
 									title={selected ? 'Remove from preview' : 'Preview on card'}
+									onclick={() => togglePreview(item)}
+									onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); togglePreview(item); } }}
 								>
 									<div class="card-top">
 										<span class="card-emoji">{item.emoji}</span>
@@ -291,7 +385,12 @@
 										<span class="price">{item.price} 🪙</span>
 										<span class="mono faint small-id">{item.id}</span>
 									</div>
-								</button>
+									<div class="card-actions">
+										<button type="button" class="btn ghost small share-btn" onclick={(e) => shareItem(item, e)} title="Copy link to this item">
+											{copiedId === item.id ? '✓ Copied' : '🔗 Share'}
+										</button>
+									</div>
+								</div>
 							{/each}
 						</div>
 					</section>
@@ -307,7 +406,17 @@
 					{#each filtered as item (item.id)}
 						{@const r = rarity(item)}
 						{@const selected = isSelected(item)}
-						<button type="button" class="shop-card card" class:selected onclick={() => togglePreview(item)} aria-pressed={selected}>
+						<div
+							id={`item-${item.id}`}
+							class="shop-card card"
+							class:selected
+							role="button"
+							tabindex="0"
+							aria-pressed={selected}
+							title={selected ? 'Remove from preview' : 'Preview on card'}
+							onclick={() => togglePreview(item)}
+							onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); togglePreview(item); } }}
+						>
 							<div class="card-top">
 								<span class="card-emoji">{item.emoji}</span>
 								<span class="rarity" style:background={`${r.color}18`} style:color={r.color} style:border-color={`${r.color}35`}>{r.label}</span>
@@ -331,7 +440,12 @@
 								<span class="price">{item.price} 🪙</span>
 								<span class="mono faint small-id">{item.id}</span>
 							</div>
-						</button>
+							<div class="card-actions">
+								<button type="button" class="btn ghost small share-btn" onclick={(e) => shareItem(item, e)} title="Copy link to this item">
+									{copiedId === item.id ? '✓ Copied' : '🔗 Share'}
+								</button>
+							</div>
+						</div>
 					{/each}
 				</div>
 			</section>
@@ -679,6 +793,20 @@
 	}
 	.price { font-weight: 800; font-size: 0.9rem; letter-spacing: -0.01em; }
 	.small-id { font-size: 0.66rem; max-width: 52%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.card-actions {
+		display: flex;
+		justify-content: flex-end;
+		margin-top: 0.35rem;
+	}
+	.share-btn {
+		font-size: 0.72rem;
+		padding: 0.2rem 0.5rem;
+		min-height: 28px;
+	}
+	.shop-card:focus-visible {
+		outline: none;
+		box-shadow: var(--ring);
+	}
 
 	.cta-bottom {
 		text-align: center;

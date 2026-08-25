@@ -11,5 +11,12 @@ export default defineConfig({
 			},
 			adapter: adapter()
 		})
-	]
+	],
+	// Allow importing the shared catalog (../shared/cosmetics.json) which lives
+	// outside the SvelteKit root (web/). Both Vite dev and `vite build` need it.
+	server: {
+		fs: {
+			allow: ['..']
+		}
+	}
 });

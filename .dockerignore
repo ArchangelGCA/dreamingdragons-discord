@@ -1,9 +1,13 @@
 # Keep build contexts small. NOTE: pb_migrations/ and pocketbase/ are intentionally
 # NOT ignored — the PocketBase image build (context = repo root) needs them.
+# web is NOT ignored: the web image (context = .) needs web/ + shared/ (single catalog).
+# We only ignore its build artifacts to keep the context small.
 node_modules
 **/node_modules
 bun.lockb
-web
+web/node_modules
+web/build
+web/.svelte-kit
 pb_data
 .git
 .gitignore
