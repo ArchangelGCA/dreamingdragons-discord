@@ -33,8 +33,41 @@
 	let navScrolled = $state(false);
 	let hoverNearTop = $state(false);
 	let navHasFocus = $state(false);
+	let navHeight = $state(56);
+	let navEl: HTMLElement | null = $state(null);
+
+	function syncStickyTop() {
+		if (typeof document === 'undefined') return;
+		const top = navHidden ? 12 : navHeight + 12;
+		document.documentElement.style.setProperty('--shop-sticky-top', `${top}px`);
+		document.documentElement.style.setProperty('--pub-nav-h', `${navHeight}px`);
+	}
+
+	// keep sticky offset in sync with nav state / height
+	$effect(() => {
+		void navHidden;
+		void navHeight;
+		syncStickyTop();
+	});
 
 	onMount(() => {
+		// measure nav height and keep --shop-sticky-top synced
+		const measure = () => {
+			if (navEl) {
+				const h = Math.round(navEl.getBoundingClientRect().height);
+				if (h && Math.abs(h - navHeight) > 1) navHeight = h;
+				else if (h) navHeight = h;
+			}
+		};
+		measure();
+		requestAnimationFrame(measure);
+		syncStickyTop();
+
+		const ro = typeof ResizeObserver !== 'undefined' && navEl ? new ResizeObserver(measure) : null;
+		if (ro && navEl) ro.observe(navEl);
+		const onResize = () => measure();
+		window.addEventListener('resize', onResize);
+
 		let lastY = window.scrollY;
 		let ticking = false;
 
@@ -91,6 +124,8 @@
 			window.removeEventListener('mousemove', onMouseMove);
 			document.removeEventListener('focusin', onFocusIn);
 			document.removeEventListener('focusout', onFocusOut);
+			window.removeEventListener('resize', onResize);
+			if (ro) ro.disconnect();
 		};
 	});
 
@@ -126,6 +161,7 @@
 
 <div class="pub">
 	<header
+		bind:this={navEl}
 		class="pub-nav"
 		class:hidden={navHidden}
 		class:scrolled={navScrolled}

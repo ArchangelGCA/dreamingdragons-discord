@@ -1076,16 +1076,50 @@ details.popover-fixed .popover {
 
 /* ── Cosmetic system: frames, banners, effects ─────────────── */
 
-/* Frames */
+/* ── Frames — subtle, non-intrusive animations. Keep existing motion, add minimal for missing. */
+.frame-glow,
+.frame-ember,
+.frame-frost,
+.frame-neon,
+.frame-void,
+.frame-rainbow {
+	isolation: isolate;
+}
 .frame-glow {
 	box-shadow:
-		0 0 24px 4px rgba(255, 255, 255, 0.35),
-		0 0 0 1px rgba(255, 255, 255, 0.12) inset;
+		0 0 24px 4px rgba(255, 255, 255, 0.32),
+		0 0 0 1px rgba(255, 255, 255, 0.11) inset;
+	animation: glowPulse 4.2s ease-in-out infinite;
+}
+@keyframes glowPulse {
+	0%, 100% {
+		box-shadow:
+			0 0 22px 3px rgba(255, 255, 255, 0.28),
+			0 0 0 1px rgba(255, 255, 255, 0.10) inset;
+	}
+	50% {
+		box-shadow:
+			0 0 30px 5px rgba(255, 255, 255, 0.40),
+			0 0 0 1px rgba(255, 255, 255, 0.14) inset;
+	}
 }
 .frame-ember {
 	box-shadow:
-		0 0 28px 6px rgba(245, 166, 35, 0.5),
-		0 0 0 1px rgba(245, 166, 35, 0.3) inset;
+		0 0 26px 5px rgba(245, 166, 35, 0.46),
+		0 0 0 1px rgba(245, 166, 35, 0.28) inset;
+	animation: emberPulse 3.6s ease-in-out infinite;
+}
+@keyframes emberPulse {
+	0%, 100% {
+		box-shadow:
+			0 0 22px 4px rgba(245, 166, 35, 0.40),
+			0 0 0 1px rgba(245, 166, 35, 0.24) inset;
+	}
+	50% {
+		box-shadow:
+			0 0 32px 7px rgba(245, 166, 35, 0.55),
+			0 0 0 1px rgba(245, 166, 35, 0.34) inset;
+	}
 }
 .frame-frost {
 	box-shadow:
@@ -1094,8 +1128,7 @@ details.popover-fixed .popover {
 	animation: frostPulse 2.8s ease-in-out infinite;
 }
 @keyframes frostPulse {
-	0%,
-	100% {
+	0%, 100% {
 		box-shadow:
 			0 0 22px 5px rgba(125, 211, 252, 0.45),
 			0 0 0 1px rgba(125, 211, 252, 0.3) inset;
@@ -1109,8 +1142,8 @@ details.popover-fixed .popover {
 .frame-neon {
 	position: relative;
 	box-shadow:
-		0 0 18px 3px rgba(32, 221, 224, 0.45),
-		0 0 0 1px rgba(236, 72, 153, 0.35) inset;
+		0 0 18px 3px rgba(32, 221, 224, 0.42),
+		0 0 0 1px rgba(236, 72, 153, 0.30) inset;
 }
 .frame-neon::after {
 	content: '';
@@ -1127,14 +1160,13 @@ details.popover-fixed .popover {
 		linear-gradient(#000 0 0) content-box,
 		linear-gradient(#000 0 0) padding-box;
 	mask-composite: exclude;
-	opacity: 0.85;
+	opacity: 0.82;
 	pointer-events: none;
-	animation: neonShift 3s linear infinite;
+	z-index: 2;
+	animation: neonShift 4.5s linear infinite;
 }
 @keyframes neonShift {
-	to {
-		filter: hue-rotate(40deg);
-	}
+	to { filter: hue-rotate(36deg); }
 }
 .frame-void {
 	box-shadow:
@@ -1143,8 +1175,7 @@ details.popover-fixed .popover {
 	animation: voidPulse 3.2s ease-in-out infinite;
 }
 @keyframes voidPulse {
-	0%,
-	100% {
+	0%, 100% {
 		box-shadow:
 			0 0 24px 6px rgba(124, 58, 237, 0.4),
 			0 0 0 1px rgba(124, 58, 237, 0.35) inset;
@@ -1176,19 +1207,39 @@ details.popover-fixed .popover {
 	mask-composite: exclude;
 	animation: rainbow-shift 4s linear infinite;
 	pointer-events: none;
+	z-index: 2;
 }
 @keyframes rainbow-shift {
-	to {
-		background-position: 200% 0;
-	}
+	to { background-position: 200% 0; }
 }
 
-/* Banners — used as header background on profile card */
+/* Ensure frame border sits above banner background but below badges/avatar */
+.frame-rainbow .banner,
+.frame-neon .banner,
+.frame-glow .banner,
+.frame-ember .banner,
+.frame-frost .banner,
+.frame-void .banner {
+	position: relative;
+	z-index: 0;
+}
+.frame-rainbow .profile-badge,
+.frame-neon .profile-badge,
+.frame-glow .profile-badge {
+	z-index: 3;
+}
+.frame-rainbow .avatar-wrap,
+.frame-neon .avatar-wrap {
+	z-index: 3;
+}
+
+/* Banners — used as header background on profile card — subtle ambient motion */
 .banner-midnight {
 	background: radial-gradient(600px 280px at 20% 0%, rgba(99, 102, 241, 0.35), transparent 60%),
 		linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #0f172a 100%) !important;
 	position: relative;
 	overflow: hidden;
+	isolation: isolate;
 }
 .banner-midnight::after {
 	content: '✦ ✦  ✦   ✦ ✦';
@@ -1200,34 +1251,91 @@ details.popover-fixed .popover {
 	letter-spacing: 0.45em;
 	opacity: 0.14;
 	pointer-events: none;
+	z-index: 1;
+	animation: midnightTwinkle 6s ease-in-out infinite;
+}
+@keyframes midnightTwinkle {
+	0%, 100% { opacity: 0.10; transform: scale(1); }
+	50% { opacity: 0.20; transform: scale(1.02); }
 }
 .banner-ocean {
 	background: linear-gradient(135deg, #0e7490 0%, #0f766e 55%, #115e59 100%) !important;
+	position: relative; overflow: hidden; isolation: isolate;
+	background-size: 200% 100% !important;
+	animation: bannerDrift 14s ease-in-out infinite alternate;
 }
 .banner-sunset {
 	background: linear-gradient(135deg, #f59e0b 0%, #f97316 35%, #ec4899 100%) !important;
+	position: relative; overflow: hidden; isolation: isolate;
+	background-size: 200% 100% !important;
+	animation: bannerDrift 12s ease-in-out infinite alternate;
 }
 .banner-forest {
 	background: linear-gradient(135deg, #059669 0%, #065f46 60%, #022c22 100%) !important;
+	position: relative; overflow: hidden; isolation: isolate;
+	background-size: 200% 100% !important;
+	animation: bannerDrift 16s ease-in-out infinite alternate;
 }
 .banner-nebula {
 	background:
 		radial-gradient(500px 300px at 70% 20%, rgba(6, 182, 214, 0.35), transparent 60%),
 		linear-gradient(135deg, #4c1d95 0%, #7c3aed 45%, #06b6d4 100%) !important;
+	position: relative; overflow: hidden; isolation: isolate;
+	background-size: 200% 100% !important;
+	animation: bannerDrift 13s ease-in-out infinite alternate;
 }
 .banner-dragonfire {
 	background: linear-gradient(135deg, #7f1d1d 0%, #dc2626 35%, #f59e0b 75%, #fbbf24 100%) !important;
+	position: relative; overflow: hidden; isolation: isolate;
+	background-size: 200% 100% !important;
+	animation: bannerDrift 11s ease-in-out infinite alternate;
+}
+@keyframes bannerDrift {
+	from { background-position: 0% 50%; }
+	to { background-position: 100% 50%; }
+}
+/* universal soft sheen sweep across all banners — very subtle, low frequency */
+.banner::before {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,0.075) 50%, transparent 70%);
+	transform: translateX(-100%);
+	animation: bannerSheen 11s ease-in-out infinite;
+	pointer-events: none;
+	z-index: 1;
+}
+@keyframes bannerSheen {
+	0%, 62% { transform: translateX(-100%); }
+	72%, 100% { transform: translateX(100%); }
 }
 
 /* Effects — applied to the name text */
 .effect-shimmer {
 	position: relative;
+	display: inline-block;
 	background: linear-gradient(110deg, var(--text) 30%, #fff 50%, var(--text) 70%);
 	background-size: 200% 100%;
 	-webkit-background-clip: text;
 	background-clip: text;
 	-webkit-text-fill-color: transparent;
+	color: transparent;
 	animation: shimmerText 2.6s linear infinite;
+}
+/* dark mode: light base + white highlight is invisible, use cyan-tinted highlight */
+:root[data-theme='dark'] .effect-shimmer {
+	background: linear-gradient(110deg, var(--text) 30%, #7efaff 50%, var(--text) 70%);
+	background-size: 200% 100%;
+	-webkit-background-clip: text;
+	background-clip: text;
+}
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme='light']) .effect-shimmer {
+		background: linear-gradient(110deg, var(--text) 30%, #7efaff 50%, var(--text) 70%);
+		background-size: 200% 100%;
+		-webkit-background-clip: text;
+		background-clip: text;
+	}
 }
 .effect-neon {
 	color: var(--text) !important;
@@ -1251,17 +1359,17 @@ details.popover-fixed .popover {
 	}
 }
 .effect-holo {
+	display: inline-block;
 	background: linear-gradient(90deg, #ff0044, #ffdd00, #33dd55, #00aaff, #7755ff, #ff0044);
 	background-size: 200% 100%;
 	-webkit-background-clip: text;
 	background-clip: text;
 	-webkit-text-fill-color: transparent;
+	color: transparent;
 	animation: rainbow-shift 3s linear infinite;
 }
 @keyframes shimmerText {
-	to {
-		background-position: 200% 0;
-	}
+	to { background-position: 200% 0; }
 }
 
 /* Badge pin on profile card */
@@ -1278,7 +1386,7 @@ details.popover-fixed .popover {
 	border: 1px solid var(--border);
 	box-shadow: var(--shadow);
 	font-size: 1.1rem;
-	z-index: 2;
+	z-index: 3;
 }
 
 @media (prefers-reduced-motion: reduce) {

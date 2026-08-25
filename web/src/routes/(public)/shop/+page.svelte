@@ -376,7 +376,7 @@
 									{:else if item.slot === 'frame' && item.cssClass}
 										<div class="frame-mini {item.cssClass}"><span class="frame-mini-label">Frame preview</span></div>
 									{:else if item.slot === 'effect' && item.cssClass}
-										<div class="effect-mini {item.cssClass}">Aa Preview</div>
+										<div class="effect-mini"><span class="{item.cssClass}">Aa Preview</span></div>
 									{:else if item.slot === 'flair' || item.slot === 'badge' || item.slot === 'title'}
 										<div class="emoji-big">{item.emoji}</div>
 									{/if}
@@ -432,7 +432,7 @@
 							{:else if item.slot === 'frame' && item.cssClass}
 								<div class="frame-mini {item.cssClass}"><span class="frame-mini-label">Frame preview</span></div>
 							{:else if item.slot === 'effect' && item.cssClass}
-								<div class="effect-mini {item.cssClass}">Aa Preview</div>
+								<div class="effect-mini"><span class="{item.cssClass}">Aa Preview</span></div>
 							{:else if item.slot === 'flair' || item.slot === 'badge' || item.slot === 'title'}
 								<div class="emoji-big">{item.emoji}</div>
 							{/if}
@@ -613,9 +613,10 @@
 		display: grid;
 		gap: 0.7rem;
 		position: sticky;
-		top: 64px;
+		top: var(--shop-sticky-top, 64px);
 		z-index: 5;
 		backdrop-filter: blur(8px);
+		transition: top 360ms var(--ease-out);
 	}
 	.search-wrap {
 		display: flex;
@@ -781,6 +782,11 @@
 		font-weight: 800;
 		font-size: 1rem;
 	}
+	.effect-mini span {
+		display: inline-block;
+		line-height: 1;
+		padding: 0.1rem 0.25rem;
+	}
 	.emoji-big { font-size: 1.9rem; text-align: center; padding: 0.15rem 0; }
 	.card-foot {
 		display: flex;
@@ -821,9 +827,10 @@
 	.preview-col { position: relative; min-width: 0; }
 	.preview-sticky {
 		position: sticky;
-		top: 64px;
+		top: var(--shop-sticky-top, 64px);
 		display: grid;
 		gap: 0.8rem;
+		transition: top 360ms var(--ease-out);
 	}
 	.preview-chips {
 		display: flex;
