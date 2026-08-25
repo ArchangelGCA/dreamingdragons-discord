@@ -12,6 +12,7 @@ const SECURE_COOKIES = (env.ORIGIN || '').startsWith('https://');
 const PUBLIC_PAGE_PATTERNS: RegExp[] = [
 	/^\/$/, // public home
 	/^\/leaderboard$/,
+	/^\/shop$/,
 	/^\/u\/[^/]+$/, // personal public stats card
 	/^\/privacy$/,
 	/^\/login$/

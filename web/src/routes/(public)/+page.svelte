@@ -12,6 +12,8 @@
 	const siteName = $derived(guild?.name ?? 'this community');
 	const medals = ['🥇', '🥈', '🥉'];
 	const gParam = $derived(pub.guild && pub.guilds.length > 1 ? `?g=${pub.guild.id}` : '');
+	const DISCORD_INVITE = 'https://discord.gg/HreQWPgQ6n';
+	const shopHref = $derived(gParam ? `/shop${gParam}` : '/shop');
 
 	function profileHref(userId: string): string {
 		return gParam ? `/u/${userId}${gParam}` : `/u/${userId}`;
@@ -40,7 +42,8 @@
 		</p>
 		<div class="hero-cta">
 			<a class="btn" href="/leaderboard{gParam}">🏆 View the leaderboard</a>
-			<a class="btn secondary" href="/privacy">🛡️ Privacy</a>
+			<a class="btn secondary" href={shopHref}>🛍️ Browse shop</a>
+			<a class="btn discord" href={DISCORD_INVITE} target="_blank" rel="noopener noreferrer">💬 Join Discord</a>
 		</div>
 	</div>
 </section>
@@ -120,6 +123,10 @@
 				<span class="chip">🎖️ 5 Badges</span>
 				<span class="chip">✨ 3 Effects</span>
 			</div>
+			<div class="teaser-actions">
+				<a class="btn small" href={shopHref}>🛍️ Preview all cosmetics</a>
+				<a class="btn secondary small" href={DISCORD_INVITE} target="_blank" rel="noopener noreferrer">💬 Join Discord to claim</a>
+			</div>
 			<p class="faint" style="font-size:0.82rem;margin-top:0.6rem">Day 1 welcome = 200🪙 → your first flair is instant! A week of dailies ≈ 800🪙 → a colour or banner. Two weeks ≈ 1 800🪙 → a frame. Jackpots (5%) double your gold randomly!</p>
 		</section>
 	{/if}
@@ -133,6 +140,10 @@
 			shown there, and our <a href="/privacy">privacy page</a> explains what we store
 			(spoiler: not much) and how to have it deleted.
 		</p>
+		<div class="info-actions">
+			<a class="btn small discord" href={DISCORD_INVITE} target="_blank" rel="noopener noreferrer">💬 Join our Discord</a>
+			<a class="btn secondary small" href={shopHref}>🛍️ See shop preview</a>
+		</div>
 	</div>
 {/if}
 
@@ -257,6 +268,24 @@
 		flex-wrap: wrap;
 		gap: 0.4rem;
 		margin-top: 0.75rem;
+	}
+	.teaser-actions, .info-actions {
+		display: flex;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+		margin-top: 0.9rem;
+	}
+	.btn.discord {
+		background: #5865f2;
+		border-color: #5865f2;
+		color: #fff;
+	}
+	.btn.discord:hover {
+		background: #4752c4;
+		border-color: #4752c4;
+		color: #fff;
+		box-shadow: 0 6px 18px -6px rgba(88,101,242,0.5);
+		filter: none;
 	}
 	.info h2 {
 		margin-bottom: 0.35rem;
