@@ -190,9 +190,8 @@ export function buildBalanceCard({displayName, avatarUrl, accentColor, gold, str
 
 /**
  * One catalog section of shop cards.
- * @param {string} placeholder
  */
-function itemLine(item, owned, balance) {
+function detailedItemLine(item, owned, balance) {
     const ownedMark = owned ? '  ✅ Owned' : '';
     const canAfford = balance >= item.price;
     const affordMark = owned ? '' : (canAfford ? '  🟢' : `  🔴 need ${formatInt(item.price - balance)} more`);
@@ -201,36 +200,138 @@ function itemLine(item, owned, balance) {
     return `${item.emoji} **${item.name}** — ${formatInt(item.price)} 🪙${ownedMark}${affordMark}  ·  ${item.description}  ·  _${rarity}_${preview}`;
 }
 
+function compactItemLine(item, owned, balance) {
+    const ownedMark = owned ? ' ✅' : '';
+    const canAfford = balance >= item.price;
+    const affordMark = owned ? '' : (canAfford ? ' 🟢' : ' 🔴');
+    return `${item.emoji} **${item.name}** — ${formatInt(item.price)} 🪙${ownedMark}${affordMark}`;
+}
+
 /**
  * Build the /shop card.
+ * Guaranteed to stay under Discord's 4000-char total TextDisplay limit.
+ * - Single-category: detailed lines (description + rarity + palette) — always fits (< ~1300).
+ * - Multi-category (overview): compact lines (emoji+name+price) — fits for current catalog (~1900) and future growth.
+ * - If even compact would exceed 4000, falls back to summary mode or truncates with overflow note.
  * @param {object} p
  * @param {number} p.balance caller's gold
  * @param {Set<string>} p.owned owned item ids for the caller
  * @param {Array<{slot:string, items:Array}>} p.groups slot -> items
  */
 export function buildShopCard({balance, owned, groups}) {
+    const MAX_TOTAL = 4000;
     const ownedCount = owned.size;
     const totalItems = groups.reduce((s,g)=>s+g.items.length,0);
     const affordable = groups.flatMap(g=>g.items).filter(i=>!owned.has(i.id) && i.price <= balance).length;
+
+    const isSingleCategory = groups.length === 1;
+
+    const headerLines = [
+        `## 🛒 DreamingDragons Shop`,
+        `Your balance: **${formatInt(balance || 0)} 🪙**  ·  ${ownedCount}/${totalItems} owned${affordable ? `  ·  **${affordable}** you can afford now!` : ''}`
+    ];
+    const headerContent = headerLines.join('\n');
+    const footer1 = `-# 🟢 affordable · 🔴 need more gold · Buy with \`/buy\`  ·  equip with \`/equip\`  ·  all cosmetics show on your public profile card & leaderboard`;
+    const footer2 = `-# 💡 Tip: Day 1 welcome = **200🪙** → instant flair! • A week ≈ **800🪙** → colour/banner • Two weeks ≈ **1 800🪙** → frame`;
+    const footerOverviewHint = isSingleCategory ? null : `-# 📂 Use \`/shop category:<name>\` for full details (description, rarity, palette)`;
+
+    // Build slot entries in the preferred mode for this view
+    let slotEntries = [];
+    for (const {slot, items} of groups) {
+        const slotOwned = items.filter(i => owned.has(i.id)).length;
+        const slotHeader = `### ${slotEmoji(slot)} ${slotLabel(slot)}  —  ${slotOwned}/${items.length}`;
+        const lines = items.map(i => (isSingleCategory ? detailedItemLine(i, owned.has(i.id), balance) : compactItemLine(i, owned.has(i.id), balance))).join('\n');
+        slotEntries.push({slotHeader, lines, count: items.length, slot, items});
+    }
+
+    // Estimate total length (sum of all TextDisplay contents)
+    const estimateTotal = (entries) => {
+        let total = headerContent.length + footer1.length + footer2.length + (footerOverviewHint ? footerOverviewHint.length : 0);
+        for (const e of entries) total += e.slotHeader.length + e.lines.length;
+        // separators not counted, but add small buffer for newlines
+        return total;
+    };
+
+    let totalLen = estimateTotal(slotEntries);
+
+    // If over limit, progressively simplify
+    let overflowNote = null;
+    if (totalLen > MAX_TOTAL) {
+        if (!isSingleCategory) {
+            // Try summary mode: one compact line per category (examples + counts) instead of listing every item
+            const summaryEntries = [];
+            for (const {slot, items} of groups) {
+                const slotOwned = items.filter(i => owned.has(i.id)).length;
+                const affordableHere = items.filter(i => !owned.has(i.id) && i.price <= balance).length;
+                const header = `### ${slotEmoji(slot)} ${slotLabel(slot)}  —  ${slotOwned}/${items.length}`;
+                const examples = items.slice(0, 3).map(i => `${i.emoji} ${i.name}`).join(', ');
+                const more = items.length > 3 ? ` +${items.length - 3} more` : '';
+                const affordText = affordableHere ? ` · 🟢 ${affordableHere} affordable` : '';
+                const body = `${examples}${more} — from ${formatInt(Math.min(...items.map(i => i.price)))}🪙${affordText}`;
+                summaryEntries.push({slotHeader: header, lines: body, count: items.length});
+            }
+            const summaryTotal = estimateTotal(summaryEntries);
+            if (summaryTotal <= MAX_TOTAL) {
+                slotEntries = summaryEntries;
+                totalLen = summaryTotal;
+            } else {
+                // Still over — truncate categories: keep only those that fit, overflow the rest
+                const truncated = [];
+                let running = headerContent.length + footer1.length + footer2.length + (footerOverviewHint ? footerOverviewHint.length : 0);
+                let hiddenItems = 0;
+                let hiddenCats = 0;
+                for (const e of summaryEntries) {
+                    const need = e.slotHeader.length + e.lines.length + 2;
+                    if (running + need > MAX_TOTAL - 120) {
+                        hiddenItems += e.count;
+                        hiddenCats++;
+                    } else {
+                        truncated.push(e);
+                        running += need;
+                    }
+                }
+                slotEntries = truncated;
+                totalLen = running;
+                if (hiddenCats > 0) {
+                    overflowNote = `-# … and **${hiddenItems}** more items across **${hiddenCats}** categories — use \`/shop category:<name>\` to browse.`;
+                    totalLen += overflowNote.length;
+                }
+            }
+        } else {
+            // Single category but still over (future-proof for huge category): truncate item list
+            const entry = slotEntries[0];
+            const available = MAX_TOTAL - (headerContent.length + footer1.length + footer2.length + entry.slotHeader.length + 120);
+            const linesArr = entry.lines.split('\n');
+            let acc = '';
+            let shown = 0;
+            for (const line of linesArr) {
+                if (acc.length + line.length + 1 > available) break;
+                acc += (acc ? '\n' : '') + line;
+                shown++;
+            }
+            const remaining = linesArr.length - shown;
+            if (remaining > 0) acc += `\n-# … and **${remaining}** more — use filters or pagination.`;
+            entry.lines = acc;
+            totalLen = headerContent.length + footer1.length + footer2.length + entry.slotHeader.length + acc.length;
+        }
+    }
+
     const children = [
-        thumbnailSection([
-            `## 🛒 DreamingDragons Shop`,
-            `Your balance: **${formatInt(balance || 0)} 🪙**  ·  ${ownedCount}/${totalItems} owned${affordable?`  ·  **${affordable}** you can afford now!`:''}`
-        ], null),
+        text(headerLines.join('\n')),
         separator()
     ];
 
-    for (const {slot, items} of groups) {
-        const slotOwned = items.filter(i=>owned.has(i.id)).length;
-        children.push(text(`### ${slotEmoji(slot)} ${slotLabel(slot)}  —  ${slotOwned}/${items.length}`));
-        children.push(text(items.map((i) => itemLine(i, owned.has(i.id), balance)).join('\n')));
+    for (const e of slotEntries) {
+        children.push(text(e.slotHeader));
+        children.push(text(e.lines));
     }
 
-    children.push(
-        separator(),
-        text(`-# 🟢 affordable · 🔴 need more gold · Buy with \`/buy\`  ·  equip with \`/equip\`  ·  all cosmetics show on your public profile card & leaderboard`),
-        text(`-# 💡 Tip: Day 1 welcome = **200🪙** → instant flair! • A week ≈ **800🪙** → colour/banner • Two weeks ≈ **1 800🪙** → frame`)
-    );
+    if (overflowNote) children.push(text(overflowNote));
+
+    children.push(separator());
+    children.push(text(footer1));
+    children.push(text(footer2));
+    if (footerOverviewHint) children.push(text(footerOverviewHint));
 
     return container(Colors.BRAND, ...children);
 }

@@ -15,8 +15,11 @@ export default {
                 .addChoices(
                     {name: 'Colours', value: 'color'},
                     {name: 'Titles', value: 'title'},
+                    {name: 'Banners', value: 'banner'},
                     {name: 'Frames', value: 'frame'},
-                    {name: 'Flair', value: 'flair'}
+                    {name: 'Flair', value: 'flair'},
+                    {name: 'Badges', value: 'badge'},
+                    {name: 'Effects', value: 'effect'}
                 )),
 
     async execute(interaction) {
