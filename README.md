@@ -316,6 +316,7 @@ POCKETBASE_URL=http://127.0.0.1:8090 ORIGIN=http://localhost:5173 \
 dd-bot/
 ├─ index.js               # bot entrypoint (interactions, events, starts internal API)
 ├─ deploy-commands.js     # registers slash commands (guild or global)
+├─ CHANGELOG.md           # notable changes per release (Keep a Changelog format)
 ├─ commands/              # slash commands (admin/, fun/, utility/)
 ├─ api/                   # bot's internal HTTP API for the dashboard (names + actions)
 ├─ utils/                 # pocketbase, leveling, economy (daily/cosmetics), reminders,
@@ -336,6 +337,10 @@ dd-bot/
 - [PocketBase](https://pocketbase.io/) — database & auth
 - [SvelteKit](https://svelte.dev/) (Svelte 5) — admin dashboard & public site
 - [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) — optional public access
+
+## 📜 Changelog
+
+All notable changes per release are documented in [CHANGELOG.md](CHANGELOG.md), following the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format. This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## 📄 License
 

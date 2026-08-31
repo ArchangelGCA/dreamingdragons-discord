@@ -849,12 +849,16 @@ input[type='checkbox'] {
 	transition: width 0.5s var(--ease);
 	position: relative;
 }
-.progress > span::after {
+/* Shimmer sweeps the whole BAR (not the fill): sized to the container so the
+   highlight fully exits the clip box at both loop boundaries — otherwise a
+   partially-visible highlight teleports back to the start every cycle. */
+.progress::after {
 	content: '';
 	position: absolute;
 	inset: 0;
 	background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
-	animation: shimmer 2.5s infinite;
+	animation: shimmer 2.5s var(--ease) infinite;
+	pointer-events: none;
 }
 @keyframes shimmer {
 	0% {
