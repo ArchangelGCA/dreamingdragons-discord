@@ -27,7 +27,7 @@
 	{#if guild?.icon}<meta property="og:image" content={guild.icon} />{/if}
 </svelte:head>
 
-<section class="hero card">
+<section class="hero card" use:animateIn>
 	{#if guild}
 		<Avatar src={guild.icon ?? ''} name={siteName} seed={guild.id} rounded="square" size={76} />
 	{:else}
@@ -36,9 +36,8 @@
 	<div class="hero-text">
 		<h1>{guild?.name ?? 'Welcome!'}</h1>
 		<p class="muted">
-			This is the public stats page of <strong>{siteName}</strong>'s Discord community —
-			members earn XP by chatting, claim <code>/daily</code> for gold & streaks, and unlock
-			cosmetics for their profile card & leaderboard style.
+			Public stats for <strong>{siteName}</strong>'s Discord — members earn XP by chatting and
+			style their profile cards with cosmetics.
 		</p>
 		<div class="hero-cta">
 			<a class="btn" href="/leaderboard{gParam}">🏆 View the leaderboard</a>
@@ -105,46 +104,23 @@
 					</a>
 				{/each}
 			</div>
+			<p class="faint under-podium">
+				Run <code>/level</code> in Discord to see your own card · <a href="/privacy{gParam}">What do we store?</a>
+			</p>
 		</section>
 
 		<section class="card cosmetics-teaser" use:animateIn={{ delay: 120 }}>
 			<h2>🎨 Style your card</h2>
 			<p class="muted">
-				Run <code>/daily</code> in Discord every day to build a streak (up to +100% bonus + milestone gold every 7 days + 5% jackpot).
-				Spend gold at <code>/shop</code> on <strong>7 categories, 35+ items</strong> — colours, titles, banners, frames, flair, badges & name effects.
-				Equip with <code>/equip</code> and your style appears here and on the leaderboard!
+				Earn gold with <code>/daily</code>, spend it in the <a href={shopHref}>shop</a> — colours,
+				titles, banners, frames, flair, badges and name effects, shown live on the leaderboard.
 			</p>
-			<div class="teaser-slots">
-				<span class="chip">🎨 9 Colours</span>
-				<span class="chip">🏷️ 9 Titles</span>
-				<span class="chip">🏞️ 6 Banners</span>
-				<span class="chip">🖼️ 6 Frames</span>
-				<span class="chip">💫 8 Flair</span>
-				<span class="chip">🎖️ 5 Badges</span>
-				<span class="chip">✨ 3 Effects</span>
-			</div>
 			<div class="teaser-actions">
 				<a class="btn small" href={shopHref}>🛍️ Preview all cosmetics</a>
 				<a class="btn secondary small" href={DISCORD_INVITE} target="_blank" rel="noopener noreferrer">💬 Join Discord to claim</a>
 			</div>
-			<p class="faint" style="font-size:0.82rem;margin-top:0.6rem">Day 1 welcome = 200🪙 → your first flair is instant! A week of dailies ≈ 800🪙 → a colour or banner. Two weeks ≈ 1 800🪙 → a frame. Jackpots (5%) double your gold randomly!</p>
 		</section>
 	{/if}
-
-	<div class="card info" use:animateIn={{ delay: 140 }}>
-		<h2>🔎 Where am I?</h2>
-		<p class="muted">
-			In Discord, run <code>/level</code> to see your rank card — it links straight to your
-			public stats page. Run <code>/daily</code> for gold, <code>/shop</code> to browse cosmetics,
-			<code>/equip</code> to style your card. Curious about the data behind it? Everything about your entry is
-			shown there, and our <a href="/privacy">privacy page</a> explains what we store
-			(spoiler: not much) and how to have it deleted.
-		</p>
-		<div class="info-actions">
-			<a class="btn small discord" href={DISCORD_INVITE} target="_blank" rel="noopener noreferrer">💬 Join our Discord</a>
-			<a class="btn secondary small" href={shopHref}>🛍️ See shop preview</a>
-		</div>
-	</div>
 {/if}
 
 <style>
@@ -258,18 +234,17 @@
 		font-weight: 700;
 		font-size: 0.8rem;
 	}
+	.under-podium {
+		text-align: center;
+		font-size: 0.82rem;
+		margin: 0.9rem 0 0;
+	}
 	.cosmetics-teaser {
 		margin-top: 1.4rem;
 	}
 	.cosmetics-teaser h2 { margin-bottom: 0.5rem; }
-	.cosmetics-teaser p { font-size: 0.92rem; }
-	.teaser-slots {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.4rem;
-		margin-top: 0.75rem;
-	}
-	.teaser-actions, .info-actions {
+	.cosmetics-teaser p { font-size: 0.92rem; margin: 0; }
+	.teaser-actions {
 		display: flex;
 		gap: 0.5rem;
 		flex-wrap: wrap;
@@ -286,9 +261,6 @@
 		color: #fff;
 		box-shadow: 0 6px 18px -6px rgba(88,101,242,0.5);
 		filter: none;
-	}
-	.info h2 {
-		margin-bottom: 0.35rem;
 	}
 
 	@media (max-width: 640px) {
