@@ -1,5 +1,5 @@
-# dd-bot Discord bot image — Bun 1.4 (multi-arch: linux/amd64 + linux/arm64)
-FROM oven/bun:1.4-alpine
+# dd-bot Discord bot image — Bun 1.4.2 (multi-arch: linux/amd64 + linux/arm64)
+FROM oven/bun:1.4.2-alpine
 
 ENV NODE_ENV=production
 ENV BUN_ENV=production

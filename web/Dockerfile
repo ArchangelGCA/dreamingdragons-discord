@@ -1,7 +1,7 @@
-# SvelteKit admin/dashboard + public site — Bun 1.4 native with svelte-adapter-bun.
+# SvelteKit admin/dashboard + public site — Bun 1.4.2 native with svelte-adapter-bun.
 # Build AND runtime use Bun's JavaScriptCore (JSC) via `bun --bun`, not Node's V8.
 # Context is repo root (see docker-compose.yml) so shared/cosmetics.json is available.
-FROM oven/bun:1.4-alpine AS build
+FROM oven/bun:1.4.2-alpine AS build
 WORKDIR /app
 
 # web deps (context = repo root, so prefix with web/)
@@ -16,7 +16,7 @@ COPY shared /shared
 # Force Bun runtime for Vite (see above)
 RUN bun --bun run build
 
-FROM oven/bun:1.4-alpine
+FROM oven/bun:1.4.2-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 ENV BUN_ENV=production

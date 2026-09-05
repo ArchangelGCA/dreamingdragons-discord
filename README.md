@@ -1,7 +1,7 @@
 # 🐉 DreamingDragons Discord Bot (dd-bot)
 
 ![discord.js](https://img.shields.io/badge/discord.js-v14.27-5865F2.svg)
-![Node](https://img.shields.io/badge/node-24%20LTS-3C873A.svg)
+![Bun](https://img.shields.io/badge/bun-%3E%3D1.4.2-f472b6.svg)
 ![PocketBase](https://img.shields.io/badge/PocketBase-v0.39-B8DBE4.svg)
 ![SvelteKit](https://img.shields.io/badge/SvelteKit-Svelte%205-FF3E00.svg)
 ![License](https://img.shields.io/badge/license-MIT-success.svg)
@@ -247,10 +247,10 @@ Images build natively for your host arch. To build for an ARM VPS from an x86 ma
 ```bash
 docker buildx build --platform linux/arm64 -f pocketbase/Dockerfile -t <you>/ddbot-pocketbase .
 docker buildx build --platform linux/arm64 -f Dockerfile           -t <you>/ddbot-bot .
-docker buildx build --platform linux/arm64 -f web/Dockerfile       -t <you>/ddbot-web ./web
+docker buildx build --platform linux/arm64 -f web/Dockerfile       -t <you>/ddbot-web .
 ```
 
-The PocketBase image downloads the correct binary via `TARGETARCH`; Node images have
+The PocketBase image downloads the correct binary via `TARGETARCH`; Bun images have
 official `arm64` variants. All three are verified to build for `linux/amd64` and `linux/arm64`.
 
 ## 📋 Commands
@@ -275,32 +275,32 @@ official `arm64` variants. All three are verified to build for `linux/amd64` and
 
 **Classic emoji example:** `/reactionrole setup channel:#roles message_content:"React!" role:@Gamer emoji:🎮`
 
-> ⚠ The cosmetics catalog is duplicated between `utils/economy.js` (bot) and `web/src/lib/cosmetics.ts` (dashboard). Keep both in sync when adding or editing items.
+> ⚠ The cosmetics catalog lives in a single source of truth, [`shared/cosmetics.json`](shared/cosmetics.json), consumed by both the bot (`utils/economy.js`) and the dashboard (`web/src/lib/cosmetics.ts`). Edit it once — do not copy data into either consumer.
 
 ## 💻 Local development (without Docker)
 
-Requires Node.js 22+ and a PocketBase instance (run one with the bundled image or the
+Requires [Bun](https://bun.sh/) ≥ 1.4.2 and a PocketBase instance (run one with the bundled image or the
 [binary](https://pocketbase.io/docs/)).
 
 ```bash
-# Bot
-npm install
+# Bot (repo root — Bun auto-loads .env, no dotenv needed)
+bun install
 cp .env.example .env          # set POCKETBASE_URL to your PB instance,
                               # and INTERNAL_API_SECRET to enable the dashboard bridge
-npm run deploy                # register slash commands
-npm run dev                   # start with auto-reload (nodemon); the internal API
+bun run deploy                # register slash commands
+bun run dev                   # start with auto-reload (--watch); the internal API
                               # listens on 127.0.0.1:${BOT_API_PORT:-8787}
-npm test                      # run the unit tests (node --test): leveling math,
+bun test                      # run the unit tests (fully offline): leveling math,
                               # economy math/streak/reward, recovery planner, CV2 UI builders,
                               # command contracts
 
 # Admin dashboard (share the SAME INTERNAL_API_SECRET as the bot; point BOT_API_URL at it)
 cd web
-npm install
+bun install
 POCKETBASE_URL=http://127.0.0.1:8090 ORIGIN=http://localhost:5173 \
   INTERNAL_API_SECRET=<same-as-bot> BOT_API_URL=http://127.0.0.1:8787 \
   POCKETBASE_ADMIN_EMAIL=<superuser-email> POCKETBASE_ADMIN_PASSWORD=<superuser-password> \
-  npm run dev
+  bun run dev
 ```
 
 > The `POCKETBASE_ADMIN_*` vars power the **public pages** (leaderboard/profile). Without them the

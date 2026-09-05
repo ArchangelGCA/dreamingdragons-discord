@@ -1,9 +1,16 @@
-# Bun 1.4 configuration — optimized for production and ARM64 builds
+# Bun 1.4.2 configuration — optimized for production and ARM64 builds
 [install]
 # Use the text lockfile (bun.lock) — faster, diff-friendly, git-mergeable vs bun.lockb
 frozenLockfile = false
 # Concurrent installs use all cores (Bun defaults to ~10x faster than npm ci)
 # cache is enabled by default; Dockerfile does `bun pm cache rm` to keep images slim
+#
+# Bun 1.4.1+ also supports `--offline` (no network, cache-only — for air-gapped CI)
+# and `--prefer-offline` (use cache, download only what's missing). To make either
+# the default, uncomment one of:
+# offline = true        # equivalent to `bun install --offline`
+# prefer = "offline"    # equivalent to `bun install --prefer-offline`
+# Both are left off here so fresh clones/CI can still fetch new dependencies.
 
 [install.cache]
 # Keep the default cache dir; Docker layers benefit from it during build
