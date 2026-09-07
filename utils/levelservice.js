@@ -15,6 +15,33 @@ import {
 export const XP_BUFFER = 10;
 
 /**
+ * Hard ceilings for user-supplied XP/level values.
+ *
+ * calculateLevelFromXp / cumulativeXpForLevel loop once per level, so an
+ * unbounded value (e.g. 1e15 XP via the dashboard or /leveladmin setlevel)
+ * would burn CPU in a very long loop (DoS). Levels above 1000 are far beyond
+ * any reachable play (level 1000 already needs ~1.3 billion XP), so inputs are
+ * clamped here instead of rejected — the operation still succeeds, safely.
+ */
+export const MAX_LEVEL = 1000;
+/** Highest XP total that can result from a clamped write (level cap + buffer). */
+export const MAX_XP = cumulativeXpForLevel(MAX_LEVEL) + XP_BUFFER;
+
+/** Clamp a user-supplied level into [0, MAX_LEVEL]. */
+export function clampLevel(level) {
+    const n = Math.floor(Number(level) || 0);
+    if (!Number.isFinite(n)) return 0;
+    return Math.min(MAX_LEVEL, Math.max(0, n));
+}
+
+/** Clamp a user-supplied XP total into [0, MAX_XP]. */
+export function clampXp(xp) {
+    const n = Math.floor(Number(xp) || 0);
+    if (!Number.isFinite(n)) return 0;
+    return Math.min(MAX_XP, Math.max(0, n));
+}
+
+/**
  * Total XP required to have reached a given level (sum of the per-level costs).
  * Mirrors the cumulative threshold used by calculateLevelFromXp.
  */
@@ -176,7 +203,7 @@ export async function syncGuildRoles(pb, client, guildId) {
 
 /** Upsert a user's XP (and derived level), then re-sync their reward roles. */
 export async function setUserXp(pb, client, guildId, userId, xp) {
-    const safeXp = Math.max(0, Math.floor(Number(xp) || 0));
+    const safeXp = clampXp(xp);
     const level = calculateLevelFromXp(safeXp);
     await upsertUserLevel(pb, guildId, userId, safeXp, level);
     invalidateUserCache(guildId, userId);
@@ -186,7 +213,7 @@ export async function setUserXp(pb, client, guildId, userId, xp) {
 
 /** Set a user's level (XP derived from the level threshold), then re-sync roles. */
 export async function setUserLevel(pb, client, guildId, userId, level) {
-    const safeLevel = Math.max(0, Math.floor(Number(level) || 0));
+    const safeLevel = clampLevel(level);
     const xp = cumulativeXpForLevel(safeLevel) + XP_BUFFER;
     await upsertUserLevel(pb, guildId, userId, xp, safeLevel);
     invalidateUserCache(guildId, userId);

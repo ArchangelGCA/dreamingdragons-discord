@@ -1,4 +1,7 @@
 export function parseColorHex(colorInput) {
+    if (colorInput == null) return null;
+    // Coerce: callers may pass numbers/booleans from JSON bodies — only act on strings.
+    colorInput = String(colorInput).trim();
     if (!colorInput) return null;
 
     // Remove # if present

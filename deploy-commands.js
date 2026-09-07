@@ -31,6 +31,10 @@ for (const folder of commandFolders) {
 console.log(`Found ${commands.length} application (/) commands.`);
 
 // Construct and prepare an instance of the REST module
+if (!process.env.DISCORD_BOT_TOKEN) {
+    console.error('Error: DISCORD_BOT_TOKEN is not set. Cannot deploy commands.');
+    process.exit(1);
+}
 const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_BOT_TOKEN);
 
 // Deploy commands

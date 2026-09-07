@@ -1,7 +1,7 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import type { UserLevel } from '$lib/types';
-import { calculateLevelFromXp } from '$lib/leveling';
+import { calculateLevelFromXp, cumulativeXpForLevel } from '$lib/leveling';
 import {
 	resolveMembers,
 	searchMembers,
@@ -13,6 +13,24 @@ import {
 
 const SNOWFLAKE = /^\d{5,25}$/;
 const PER_PAGE = 25;
+
+// Same ceilings as the bot's utils/levelservice.js (MAX_LEVEL / MAX_XP):
+// calculateLevelFromXp loops once per level, so unbounded input is a CPU DoS.
+// The bot clamps authoritatively too — this just keeps the dashboard honest.
+const MAX_LEVEL = 1000;
+const MAX_XP = cumulativeXpForLevel(MAX_LEVEL) + 10;
+
+const clampXp = (v: unknown): number => {
+	const n = Math.floor(Number(v) || 0);
+	if (!Number.isFinite(n)) return 0;
+	return Math.min(MAX_XP, Math.max(0, n));
+};
+
+const clampLevel = (v: unknown): number => {
+	const n = Math.floor(Number(v) || 0);
+	if (!Number.isFinite(n)) return 0;
+	return Math.min(MAX_LEVEL, Math.max(0, n));
+};
 
 export const load: PageServerLoad = async ({ locals, parent, url }) => {
 	const { guild } = await parent();
@@ -69,7 +87,7 @@ export const actions: Actions = {
 		const f = await request.formData();
 		const guild_id = String(f.get('guild_id') || '').trim();
 		const user_id = String(f.get('user_id') || '').trim();
-		const xp = Math.max(0, Number(f.get('xp') || 0));
+		const xp = clampXp(f.get('xp'));
 		if (!SNOWFLAKE.test(guild_id) || !SNOWFLAKE.test(user_id)) return fail(400, { error: 'Invalid guild/user.' });
 
 		// Prefer the bot so reward roles re-sync; fall back to a plain DB write.
@@ -93,7 +111,7 @@ export const actions: Actions = {
 		const f = await request.formData();
 		const guild_id = String(f.get('guild_id') || '').trim();
 		const user_id = String(f.get('user_id') || '').trim();
-		const level = Math.max(0, Number(f.get('level') || 0));
+		const level = clampLevel(f.get('level'));
 		if (!SNOWFLAKE.test(guild_id) || !SNOWFLAKE.test(user_id)) return fail(400, { error: 'Invalid guild/user.' });
 		const res = await setUserLevel(guild_id, user_id, level);
 		if (!res.ok) return fail(502, { error: res.error });

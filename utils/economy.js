@@ -418,44 +418,53 @@ export async function claimDailyReward(pb, client, guildId, userId) {
 
 /**
  * Purchase a cosmetic item. Deducts gold, adds to owned array.
+ *
+ * Serialized per (guild, user) like daily claims: without the lock, two
+ * concurrent /buy invocations could both pass the balance check and overspend.
  * @returns {{ok:true}|{ok:false, error:string}}
  */
 export async function purchaseCosmetic(pb, guildId, userId, itemId) {
-    const record = await getOrCreateEconomyRecord(pb, guildId, userId);
-    const check = evaluatePurchase(record, itemId);
-    if (!check.ok) return check;
+    return withLock(`${guildId}:${userId}`, async () => {
+        const record = await getOrCreateEconomyRecord(pb, guildId, userId);
+        const check = evaluatePurchase(record, itemId);
+        if (!check.ok) return check;
 
-    const item = byId.get(itemId);
-    const oldCosmetics = record.cosmetics || [];
-    const newGold = (record.gold || 0) - item.price;
+        const item = byId.get(itemId);
+        const oldCosmetics = record.cosmetics || [];
+        const newGold = (record.gold || 0) - item.price;
 
-    await pb.collection(COLL).update(record.id, {
-        gold: newGold,
-        cosmetics: [...oldCosmetics, itemId]
+        await pb.collection(COLL).update(record.id, {
+            gold: newGold,
+            cosmetics: [...oldCosmetics, itemId]
+        });
+
+        return {ok: true, item, newGold};
     });
-
-    return {ok: true, item, newGold};
 }
 
 /**
  * Equip or unequip an item. Supports "none:<slot>" for unequip.
+ * Serialized per (guild, user) so concurrent /equip calls can't clobber
+ * each other's equipped map (read-modify-write).
  * @returns {{ok:true, action:'equip'|'unequip', slot:string, item?:CatalogItem}|{ok:false, error:string}}
  */
 export async function equipCosmetic(pb, guildId, userId, candidate) {
-    const record = await getOrCreateEconomyRecord(pb, guildId, userId);
-    const check = evaluateEquip(record, candidate);
-    if (!check.ok) return check;
+    return withLock(`${guildId}:${userId}`, async () => {
+        const record = await getOrCreateEconomyRecord(pb, guildId, userId);
+        const check = evaluateEquip(record, candidate);
+        if (!check.ok) return check;
 
-    const equipped = {...(record.equipped || {})};
+        const equipped = {...(record.equipped || {})};
 
-    if (check.action === 'unequip') {
-        delete equipped[check.slot];
-    } else {
-        equipped[check.slot] = check.item.id;
-    }
+        if (check.action === 'unequip') {
+            delete equipped[check.slot];
+        } else {
+            equipped[check.slot] = check.item.id;
+        }
 
-    await pb.collection(COLL).update(record.id, {equipped});
-    return {ok: true, ...check, equipped};
+        await pb.collection(COLL).update(record.id, {equipped});
+        return {ok: true, ...check, equipped};
+    });
 }
 
 /** Toggle DM streak reminders. */

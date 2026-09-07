@@ -172,8 +172,12 @@ async function handleLeveling(client, pb, guild, rest, method, query, body) {
         const existing = await pb.collection('level_settings').getList(1, 1, {
             filter: pb.filter('guild_id = {:g}', { g: guildId })
         });
+        const notificationChannelId = String(body.notification_channel_id ?? '').trim();
+        if (notificationChannelId && !/^\d{5,25}$/.test(notificationChannelId)) {
+            throw new HttpError(400, 'notification_channel_id must be a Discord channel ID or empty.');
+        }
         const data = {
-            notification_channel_id: String(body.notification_channel_id || ''),
+            notification_channel_id: notificationChannelId,
             xp_per_message: clampInt(body.xp_per_message, 1, 1000, 20),
             xp_cooldown: clampInt(body.xp_cooldown, 1, 86400, 60),
             enabled: !!body.enabled
@@ -342,10 +346,13 @@ async function dispatch(client, method, pathname, query, body) {
     // /cache/invalidate — best-effort cache busting after direct-to-PB writes.
     if (segments[0] === 'cache' && segments[1] === 'invalidate' && method === 'POST') {
         const guildId = String(body.guildId || '');
-        if (!guildId) throw new HttpError(400, 'guildId is required.');
+        if (!/^\d{5,25}$/.test(guildId)) throw new HttpError(400, 'A valid guildId is required.');
         invalidateLevelSettingsCache(guildId);
-        if (body.userId) invalidateUserCache(guildId, String(body.userId));
-        else invalidateGuildUserCache(guildId);
+        if (body.userId) {
+            const userId = String(body.userId);
+            if (!/^\d{5,25}$/.test(userId)) throw new HttpError(400, 'A valid userId is required.');
+            invalidateUserCache(guildId, userId);
+        } else invalidateGuildUserCache(guildId);
         return { ok: true };
     }
 

@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.1.6] – 2026-09-07
+
+### Security
+
+- **Bot / admin commands:** `/leveladmin` and `/reactionrole` now enforce the Administrator permission at runtime. Previously they relied solely on `setDefaultMemberPermissions`, which server admins can loosen per role/channel. `/leveladmin` is also guild-only now (`setContexts(Guild)` + `inGuild()` guard) and `/leveladmin setlevel` caps at the new max level.
+- **Bot / leveling:** user-supplied XP/level values are now clamped (`MAX_LEVEL = 1000`, `MAX_XP ≈ 1.27B`) in `utils/levelservice.js`. The level curve loops once per level, so a huge value (via dashboard, internal API or `/leveladmin setlevel`) could hang the bot in a long loop (CPU DoS). The dashboard (`users` actions) applies the same ceilings.
+- **Bot / economy:** `/buy` and `/equip` are now serialized per (guild, user) with the existing claim lock. Two concurrent purchases could both pass the gold check and overspend (double-spend); concurrent equips could clobber the equipped map.
+- **Bot / reaction panels:** panel title/description lengths are validated up front in `utils/reactionservice.js` (title ≤ 256, description ≤ 4000 chars, matching Discord limits) for both the slash command and dashboard paths, instead of failing at send time. `parseColorHex`/`panelDescription` now coerce non-string input instead of throwing on malformed API payloads.
+- **Dashboard / login:** the superuser sign-in now has its own rate limit (10 attempts per 5 min per IP) plus a small delay on failure, slowing online password guessing. The public-page limiter additionally has a global ceiling so rotating `cf-connecting-ip`/`x-forwarded-for` headers can't bypass it unboundedly.
+- **Dashboard / hardening:** every response now carries `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `X-Frame-Options: DENY` and a minimal `Permissions-Policy`; the `dd_guild` cookie gets the `Secure` flag on HTTPS origins (matching the auth cookie); the bot bridge tolerates non-JSON replies instead of throwing into page loads; deleting a level reward now verifies the record belongs to the current guild.
+- **Internal API:** `leveling/settings` rejects malformed `notification_channel_id` (must be a channel ID or empty) and `/cache/invalidate` validates `guildId`/`userId` formats instead of accepting arbitrary strings.
+- **Updater / tooling:** `deploy/updater/update.sh` validates `AUTO_UPDATE_INTERVAL` (falls back to 300s, clamps to a 30s minimum) so a bad value can't turn the poll loop into a busy git-fetch hammer; `deploy-commands.js` exits early with a clear error when `DISCORD_BOT_TOKEN` is unset.
+
 ## [0.1.5] – 2026-09-05
 
 ### Changed
@@ -92,7 +105,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Initial release.
 
-[Unreleased]: https://github.com/ArchangelGCA/dreamingdragons-discord/compare/v0.1.5...HEAD
+[Unreleased]: https://github.com/ArchangelGCA/dreamingdragons-discord/compare/v0.1.6...HEAD
+[0.1.6]: https://github.com/ArchangelGCA/dreamingdragons-discord/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/ArchangelGCA/dreamingdragons-discord/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/ArchangelGCA/dreamingdragons-discord/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/ArchangelGCA/dreamingdragons-discord/compare/v0.1.2...v0.1.3

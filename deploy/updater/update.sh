@@ -22,6 +22,20 @@ REMOTE="${AUTO_UPDATE_REMOTE:-origin}"
 INTERVAL="${AUTO_UPDATE_INTERVAL:-300}"
 SELF_SERVICE="${AUTO_UPDATE_SELF_SERVICE:-updater}"
 
+# Validate the poll interval: a non-numeric (or tiny) value would make
+# `sleep` fail (or return instantly) and turn the loop below into a busy
+# git-fetch hammer. Fall back to 300s, and never poll faster than 30s.
+case "${INTERVAL:-}" in
+  ''|*[!0-9]*)
+    log "WARN: AUTO_UPDATE_INTERVAL='${INTERVAL:-}' is not a positive integer; using 300."
+    INTERVAL=300
+    ;;
+esac
+if [ "$INTERVAL" -lt 30 ]; then
+  log "WARN: AUTO_UPDATE_INTERVAL=${INTERVAL}s is too aggressive; clamped to 30s."
+  INTERVAL=30
+fi
+
 log() { echo "[autoupdate $(date -u '+%Y-%m-%dT%H:%M:%SZ')] $*"; }
 
 cd "$REPO_DIR" || { log "FATAL: repo dir '$REPO_DIR' not mounted."; exit 1; }

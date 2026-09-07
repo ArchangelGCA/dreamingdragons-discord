@@ -85,7 +85,14 @@ async function botFetch<T>(path: string, init?: RequestInit): Promise<BotResult<
 			signal: AbortSignal.timeout(TIMEOUT_MS)
 		});
 		const text = await res.text();
-		const body = text ? JSON.parse(text) : {};
+		let body: any = {};
+		try {
+			body = text ? JSON.parse(text) : {};
+		} catch {
+			// Non-JSON reply (proxy/gateway error page, truncated body, …) —
+			// degrade gracefully instead of throwing into page loads.
+			return { ok: false, error: `Bot API error (${res.status}).`, status: res.status };
+		}
 		if (!res.ok) {
 			return { ok: false, error: body?.error || `Bot API error (${res.status}).`, status: res.status };
 		}

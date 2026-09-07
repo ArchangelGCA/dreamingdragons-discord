@@ -1,10 +1,11 @@
-import {SlashCommandBuilder, PermissionsBitField, MessageFlags} from 'discord.js';
+import {SlashCommandBuilder, PermissionsBitField, MessageFlags, InteractionContextType} from 'discord.js';
 import {invalidateLevelSettingsCache} from '../../utils/leveling.js';
 import {
     recoverGuildXp,
     syncGuildRoles,
     setUserLevel,
-    resetUser
+    resetUser,
+    MAX_LEVEL
 } from '../../utils/levelservice.js';
 import {replyError, replySuccess} from '../../utils/replies.js';
 import {getPb} from "../../utils/pocketbase.js";
@@ -14,6 +15,7 @@ export default {
         .setName('leveladmin')
         .setDescription('Manage the server leveling system')
         .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
+        .setContexts(InteractionContextType.Guild)
         .addSubcommand(subcommand =>
             subcommand
                 .setName('setup')
@@ -91,9 +93,21 @@ export default {
                     option.setName('level')
                         .setDescription('Level to set for the user')
                         .setMinValue(1)
+                        .setMaxValue(MAX_LEVEL)
                         .setRequired(true))),
 
     async execute(interaction) {
+        if (!interaction.inGuild()) {
+            await replyError(interaction, 'This command can only be used in a server.');
+            return;
+        }
+        // Defense in depth: setDefaultMemberPermissions only sets the DEFAULT —
+        // server admins can loosen it per role/channel. Enforce it at runtime too.
+        if (!interaction.memberPermissions?.has(PermissionsBitField.Flags.Administrator)) {
+            await replyError(interaction, 'You need the Administrator permission to use this command.');
+            return;
+        }
+
         const subcommand = interaction.options.getSubcommand();
 
         const pb = await getPb();

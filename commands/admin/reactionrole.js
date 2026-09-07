@@ -195,6 +195,12 @@ export default {
             await interaction.reply({ content: 'This command can only be used in a server.', flags: MessageFlags.Ephemeral });
             return;
         }
+        // Defense in depth: setDefaultMemberPermissions only sets the DEFAULT —
+        // server admins can loosen it per role/channel. Enforce it at runtime too.
+        if (!interaction.memberPermissions?.has(PermissionsBitField.Flags.Administrator)) {
+            await interaction.reply({ content: 'You need the Administrator permission to use this command.', flags: MessageFlags.Ephemeral });
+            return;
+        }
 
         const botMember = interaction.guild.members.me ?? await interaction.guild.members.fetch(interaction.client.user.id);
         if (!botMember.permissions.has(PermissionsBitField.Flags.ManageRoles)) {

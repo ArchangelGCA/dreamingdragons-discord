@@ -118,7 +118,7 @@ export function buildReactionRoleEmbed({ description, title, color, roleColor })
 
 /** Convert admin input to the multi-line text shown in the panel. */
 export function panelDescription(description) {
-    return (description || '').replace(/\\n/g, '\n');
+    return String(description ?? '').replace(/\\n/g, '\n');
 }
 
 /**

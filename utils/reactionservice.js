@@ -19,6 +19,25 @@ import {
 export class ReactionServiceError extends Error {}
 
 /**
+ * Discord text-display limits: over-long admin input would otherwise fail at
+ * send time with a raw API error. Validate up-front (both the slash command
+ * and the dashboard funnel through here) so the caller gets a friendly message.
+ */
+export const MAX_PANEL_TITLE_LENGTH = 256;
+export const MAX_PANEL_DESCRIPTION_LENGTH = 4000;
+
+function assertPanelText(embed) {
+    const title = embed?.title;
+    const description = embed?.description;
+    if (title != null && String(title).length > MAX_PANEL_TITLE_LENGTH) {
+        throw new ReactionServiceError(`The title is too long (max ${MAX_PANEL_TITLE_LENGTH} characters).`);
+    }
+    if (description != null && String(description).length > MAX_PANEL_DESCRIPTION_LENGTH) {
+        throw new ReactionServiceError(`The description is too long (max ${MAX_PANEL_DESCRIPTION_LENGTH} characters).`);
+    }
+}
+
+/**
  * Reject roles the bot cannot assign (hierarchy / managed / @everyone).
  * @returns {string|null} an error message, or null if the role is assignable.
  */
@@ -51,6 +70,7 @@ async function requireRole(guild, roleId) {
  * @returns {Promise<{messageId:string, channelId:string, count:number}>}
  */
 export async function createMessage(client, pb, guildId, { channelId, embed, entries }) {
+    assertPanelText(embed);
     const guild = await client.guilds.fetch(guildId);
     if (!Array.isArray(entries) || entries.length === 0) {
         throw new ReactionServiceError('At least one role entry is required.');
@@ -133,6 +153,7 @@ async function fetchGroupMessage(client, pb, guildId, messageId) {
  * embed-based panels stay embeds (edited in place).
  */
 export async function updateEmbed(client, pb, guildId, messageId, embed) {
+    assertPanelText(embed);
     const { message } = await fetchGroupMessage(client, pb, guildId, messageId);
 
     const panel = extractReactionPanelTexts(message);
@@ -357,6 +378,7 @@ export async function adoptMessage(client, pb, guildId, { channelId, messageId, 
  * rebuilds its buttons/reactions. An old copy that still exists is removed.
  */
 export async function resendMessage(client, pb, guildId, messageId, { channelId, embed } = {}) {
+    assertPanelText(embed);
     const records = await pb.collection('reaction_roles').getFullList({
         filter: pb.filter('guild_id = {:g} && message_id = {:m}', { g: guildId, m: messageId }),
         sort: 'created'

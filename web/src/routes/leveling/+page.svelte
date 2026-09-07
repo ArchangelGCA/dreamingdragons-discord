@@ -113,6 +113,7 @@
 								<td class="right">
 									<form method="POST" action="?/deleteReward" use:enhance>
 										<input type="hidden" name="id" value={r.id} />
+										<input type="hidden" name="guild_id" value={gid} />
 										<button class="btn danger secondary small">Delete</button>
 									</form>
 								</td>

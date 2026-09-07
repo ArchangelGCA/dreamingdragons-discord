@@ -98,8 +98,15 @@ export const actions: Actions = {
 
 	deleteReward: async ({ request, locals }) => {
 		const f = await request.formData();
+		const id = String(f.get('id') || '');
+		const guild_id = String(f.get('guild_id') || '').trim();
+		if (!id || !SNOWFLAKE.test(guild_id)) return fail(400, { error: 'Invalid reward.' });
 		try {
-			await locals.pb.collection('level_rewards').delete(String(f.get('id') || ''));
+			// Scope the delete to the current guild: refuse to touch records that
+			// belong to another guild (forged IDs), instead of deleting blindly.
+			const rec = await locals.pb.collection('level_rewards').getOne(id);
+			if (!rec || rec.guild_id !== guild_id) return fail(404, { error: 'Reward not found.' });
+			await locals.pb.collection('level_rewards').delete(id);
 			return { success: 'Reward removed.' };
 		} catch {
 			return fail(400, { error: 'Failed to remove reward.' });

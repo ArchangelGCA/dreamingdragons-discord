@@ -41,6 +41,24 @@ const RATE_WINDOW_MS = 60_000;
 const RATE_LIMIT = 120; // requests per window per IP for public pages
 const hits = new Map<string, { start: number; count: number }>();
 
+// Global backstop for the public pages: per-IP keys can be rotated by
+// spoofing cf-connecting-ip / x-forwarded-for on direct (non-tunnel) access,
+// so a single shared ceiling keeps one actor from hammering PocketBase
+// unboundedly. Set high enough (2000/min) to never trip on legit traffic.
+const GLOBAL_RATE_LIMIT = 2000;
+let globalEntry = { start: 0, count: 0 };
+
+function globalLimitExceeded(): boolean {
+	const now = Date.now();
+	if (now - globalEntry.start > RATE_WINDOW_MS) {
+		globalEntry = { start: now, count: 1 };
+	} else {
+		globalEntry.count += 1;
+		if (globalEntry.count > GLOBAL_RATE_LIMIT) return true;
+	}
+	return false;
+}
+
 function rateLimitExceeded(key: string): boolean {
 	const now = Date.now();
 	const entry = hits.get(key);
@@ -65,6 +83,16 @@ function clientIp(event: Parameters<Handle>[0]['event']): string {
 	);
 }
 
+// Baseline hardening headers on every response (dashboard + public site +
+// proxied /pb admin UI). No CSP: the app ships an inline theme-boot script
+// and Google Fonts, so a strict policy would need per-route testing first.
+function applySecurityHeaders(res: Response): void {
+	res.headers.set('x-content-type-options', 'nosniff');
+	res.headers.set('referrer-policy', 'strict-origin-when-cross-origin');
+	res.headers.set('x-frame-options', 'DENY');
+	res.headers.set('permissions-policy', 'camera=(), microphone=(), geolocation=(), payment=()');
+}
+
 export const handle: Handle = async ({ event, resolve }) => {
 	const pb = new PocketBase(PB_URL);
 	pb.autoCancellation(false);
@@ -72,12 +100,14 @@ export const handle: Handle = async ({ event, resolve }) => {
 	// Public site: no auth work at all (no cookie read, no token refresh, no
 	// cookie written) — visitors never carry credentials.
 	if (isAnonFastPath(event.url.pathname) && event.request.method === 'GET') {
-		if (rateLimitExceeded(clientIp(event))) {
+		if (rateLimitExceeded(clientIp(event)) || globalLimitExceeded()) {
 			return new Response('Too many requests — slow down a little.', { status: 429 });
 		}
 		event.locals.pb = pb; // unauthenticated; public reads use lib/server/public.ts
 		event.locals.admin = null;
-		return resolve(event);
+		const res = await resolve(event);
+		applySecurityHeaders(res);
+		return res;
 	}
 
 	// Restore auth from the request cookie.
@@ -118,6 +148,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 		'set-cookie',
 		pb.authStore.exportToCookie({ httpOnly: true, secure: SECURE_COOKIES, sameSite: 'Lax', path: '/' })
 	);
+	applySecurityHeaders(response);
 
 	return response;
 };
