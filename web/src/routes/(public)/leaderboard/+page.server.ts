@@ -1,5 +1,5 @@
 import type { PageServerLoad } from './$types';
-import { loadPublicLeaderboard } from '$lib/server/public';
+import { loadPublicLeaderboard } from '#lib/server/public.js';
 
 const PER_PAGE = 25;
 

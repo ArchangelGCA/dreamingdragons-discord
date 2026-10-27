@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import Avatar from '$lib/components/Avatar.svelte';
-	import { anonymize } from '$lib/format';
-	import { formatNumber, levelProgress } from '$lib/leveling';
-	import { animateIn } from '$lib/actions/animate';
+	import Avatar from '#lib/components/Avatar.svelte';
+	import { anonymize } from '#lib/format.js';
+	import { formatNumber, levelProgress } from '#lib/leveling.js';
+	import { animateIn } from '#lib/actions/animate.js';
 
 	let { data } = $props();
 
@@ -40,7 +40,9 @@
 
 	// Accent gradient for progress + pills when a color is equipped
 	const accentStyle = $derived(
-		cosmetics?.color ? `linear-gradient(90deg, ${cosmetics.color.from}, ${cosmetics.color.to})` : null
+		cosmetics?.color
+			? `linear-gradient(90deg, ${cosmetics.color.from}, ${cosmetics.color.to})`
+			: null
 	);
 	const accentFrom = $derived(cosmetics?.color?.from ?? null);
 
@@ -56,7 +58,15 @@
 	}
 
 	const hasAnyCosmetic = $derived(
-		!!(cosmetics?.color || cosmetics?.title || cosmetics?.frame || cosmetics?.flair || cosmetics?.banner || cosmetics?.badge || cosmetics?.effect)
+		!!(
+			cosmetics?.color ||
+			cosmetics?.title ||
+			cosmetics?.frame ||
+			cosmetics?.flair ||
+			cosmetics?.banner ||
+			cosmetics?.badge ||
+			cosmetics?.effect
+		)
 	);
 </script>
 
@@ -66,7 +76,9 @@
 		<meta property="og:title" content="{name} — Level {entry.level}" />
 		<meta
 			property="og:description"
-			content="Rank #{entry.rank} on {siteName} with {formatNumber(entry.xp)} XP. {cosmetics?.title ? 'Title: ' + cosmetics.title + ' · ' : ''}Custom style unlocked via daily rewards!"
+			content="Rank #{entry.rank} on {siteName} with {formatNumber(entry.xp)} XP. {cosmetics?.title
+				? 'Title: ' + cosmetics.title + ' · '
+				: ''}Custom style unlocked via daily rewards!"
 		/>
 		{#if entry.avatar}<meta property="og:image" content={entry.avatar} />{/if}
 	{:else}
@@ -80,131 +92,167 @@
 			<span style="font-size:2.2rem">🌱</span>
 			<h1 class="p-name">No stats yet</h1>
 			<p class="muted">
-				This member hasn't earned any XP in {siteName} yet — or the link has a typo.
-				A card appears here after their first counted messages.
+				This member hasn't earned any XP in {siteName} yet — or the link has a typo. A card appears here
+				after their first counted messages.
 			</p>
 			<a class="btn secondary small" href="/leaderboard{boardQuery}">🏆 To the leaderboard</a>
 		</div>
 	</div>
 {:else}
-<div class="center" use:animateIn>
-	<div class="card profile-card {cosmetics?.frame ?? ''}" style:overflow="hidden">
-		<!-- Banner header -->
-		<div class="banner {cosmetics?.banner?.cssClass ?? 'banner-default'}" style:background={cosmetics?.banner ? `linear-gradient(135deg, ${cosmetics.banner.from}, ${cosmetics.banner.to})` : undefined}>
-			{#if cosmetics?.color}
-				<div class="banner-wash" style:background={`linear-gradient(90deg, ${cosmetics.color.from}55, ${cosmetics.color.to}55)`}></div>
-			{/if}
-			{#if cosmetics?.badge}
-				<div class="profile-badge" title="Badge — {cosmetics.badge}">{cosmetics.badge}</div>
-			{/if}
-			<div class="banner-pattern"></div>
-		</div>
-
-		<!-- Avatar overlapping banner -->
-		<div class="avatar-wrap">
-			<div class="avatar-ring {cosmetics?.frame ? '' : 'no-frame'}" style:box-shadow={cosmetics?.color ? `0 0 0 3px ${cosmetics.color.from}, 0 8px 24px rgba(0,0,0,0.3)` : undefined}>
-				<Avatar src={entry.avatar ?? ''} {name} seed={entry.userId} size={96} />
+	<div class="center" use:animateIn>
+		<div class="card profile-card {cosmetics?.frame ?? ''}" style:overflow="hidden">
+			<!-- Banner header -->
+			<div
+				class="banner {cosmetics?.banner?.cssClass ?? 'banner-default'}"
+				style:background={cosmetics?.banner
+					? `linear-gradient(135deg, ${cosmetics.banner.from}, ${cosmetics.banner.to})`
+					: undefined}
+			>
+				{#if cosmetics?.color}
+					<div
+						class="banner-wash"
+						style:background={`linear-gradient(90deg, ${cosmetics.color.from}55, ${cosmetics.color.to}55)`}
+					></div>
+				{/if}
+				{#if cosmetics?.badge}
+					<div class="profile-badge" title="Badge — {cosmetics.badge}">{cosmetics.badge}</div>
+				{/if}
+				<div class="banner-pattern"></div>
 			</div>
-			{#if cosmetics?.flair}
-				<span class="flair-bubble" title="Flair">{cosmetics.flair}</span>
-			{/if}
-		</div>
 
-		<div class="profile-body">
-			<h1 class="p-name {cosmetics?.effect ?? ''}">{name}</h1>
-
-			{#if cosmetics?.title}
-				<div class="title-pill">
-					<span>{(cosmetics as any).titleEmoji ?? '🏷️'}</span>
-					{cosmetics.title}
+			<!-- Avatar overlapping banner -->
+			<div class="avatar-wrap">
+				<div
+					class="avatar-ring {cosmetics?.frame ? '' : 'no-frame'}"
+					style:box-shadow={cosmetics?.color
+						? `0 0 0 3px ${cosmetics.color.from}, 0 8px 24px rgba(0,0,0,0.3)`
+						: undefined}
+				>
+					<Avatar src={entry.avatar ?? ''} {name} seed={entry.userId} size={96} />
 				</div>
-			{/if}
-
-			<div class="pills">
-				<span class="rank-pill">#{entry.rank}</span>
-				<span class="lvl-chip" style:background={accentStyle ?? undefined} style:color={accentStyle ? '#fff' : undefined}>Level {entry.level}</span>
-				{#if entry.rank <= 3}
-					<span class="medal-pill">{['🥇','🥈','🥉'][entry.rank - 1]}</span>
+				{#if cosmetics?.flair}
+					<span class="flair-bubble" title="Flair">{cosmetics.flair}</span>
 				{/if}
 			</div>
 
-			<div class="xp-block">
-				<div class="xp-line">
-					<span class="xp-num">{formatNumber(entry.xp)}</span>
-					<span class="muted">total XP</span>
-				</div>
-				<div class="progress big" style:height="10px">
+			<div class="profile-body">
+				<h1 class="p-name {cosmetics?.effect ?? ''}">{name}</h1>
+
+				{#if cosmetics?.title}
+					<div class="title-pill">
+						<span>{(cosmetics as any).titleEmoji ?? '🏷️'}</span>
+						{cosmetics.title}
+					</div>
+				{/if}
+
+				<div class="pills">
+					<span class="rank-pill">#{entry.rank}</span>
 					<span
-						style:width={`${p.pct}%`}
+						class="lvl-chip"
 						style:background={accentStyle ?? undefined}
-					></span>
-				</div>
-				<div class="muted xp-sub">
-					{p.into} / {p.span} XP to Level {p.level + 1} · {p.pct}%
-				</div>
-			</div>
-
-			{#if economy}
-				<div class="stats-row">
-					<span class="stat-pill" title="Current streak">🔥 {economy.streak} day{economy.streak===1 ? '' : 's'}</span>
-					{#if economy.bestStreak > economy.streak}
-						<span class="stat-pill faint">best {economy.bestStreak}</span>
-					{/if}
-					<span class="stat-pill">🎁 {economy.totalClaims} claims</span>
-					{#if ownedCount > 0}
-						<span class="stat-pill">🎒 {ownedCount} owned</span>
+						style:color={accentStyle ? '#fff' : undefined}>Level {entry.level}</span
+					>
+					{#if entry.rank <= 3}
+						<span class="medal-pill">{['🥇', '🥈', '🥉'][entry.rank - 1]}</span>
 					{/if}
 				</div>
-			{/if}
 
-			{#if hasAnyCosmetic}
-				<div class="cosmetics-strip">
-					<span class="strip-label">Style</span>
-					<div class="strip-items">
-						{#if cosmetics?.color}<span class="mini-chip" style:background={accentStyle} style:color="#fff">🎨 {cosmetics.color.from}</span>{/if}
-						{#if cosmetics?.banner}<span class="mini-chip">🏞️ {cosmetics.banner.cssClass?.replace('banner-','') ?? 'banner'}</span>{/if}
-						{#if cosmetics?.frame}<span class="mini-chip">🖼️ {cosmetics.frame.replace('frame-','')}</span>{/if}
-						{#if cosmetics?.flair}<span class="mini-chip">💫 {cosmetics.flair}</span>{/if}
-						{#if cosmetics?.badge}<span class="mini-chip">🎖️ {cosmetics.badge}</span>{/if}
-						{#if cosmetics?.effect}<span class="mini-chip">✨ {cosmetics.effect.replace('effect-','')}</span>{/if}
-						{#if cosmetics?.title}<span class="mini-chip">🏷️ {cosmetics.title}</span>{/if}
+				<div class="xp-block">
+					<div class="xp-line">
+						<span class="xp-num">{formatNumber(entry.xp)}</span>
+						<span class="muted">total XP</span>
+					</div>
+					<div class="progress big" style:height="10px">
+						<span style:width={`${p.pct}%`} style:background={accentStyle ?? undefined}></span>
+					</div>
+					<div class="muted xp-sub">
+						{p.into} / {p.span} XP to Level {p.level + 1} · {p.pct}%
 					</div>
 				</div>
-			{:else}
-				<p class="faint hint">No cosmetics equipped yet — run <code>/daily</code> and visit <code>/shop</code> in Discord to style this card!</p>
-			{/if}
 
-			{#if profile && !profile.levelingEnabled}
-				<div class="alert" style="margin-top:1rem">⏸️ Leveling is paused right now — your XP is safe and this page keeps working.</div>
-			{/if}
-			{#if lastActiveFmt}
-				<p class="faint last-active">Last active: {lastActiveFmt}</p>
-			{/if}
+				{#if economy}
+					<div class="stats-row">
+						<span class="stat-pill" title="Current streak"
+							>🔥 {economy.streak} day{economy.streak === 1 ? '' : 's'}</span
+						>
+						{#if economy.bestStreak > economy.streak}
+							<span class="stat-pill faint">best {economy.bestStreak}</span>
+						{/if}
+						<span class="stat-pill">🎁 {economy.totalClaims} claims</span>
+						{#if ownedCount > 0}
+							<span class="stat-pill">🎒 {ownedCount} owned</span>
+						{/if}
+					</div>
+				{/if}
 
-			<div class="actions">
-				<button class="btn small" type="button" onclick={copyLink}>{copied ? '✅ Copied!' : '🔗 Copy link'}</button>
-				<a class="btn secondary small" href="/leaderboard{boardQuery}">🏆 Leaderboard</a>
+				{#if hasAnyCosmetic}
+					<div class="cosmetics-strip">
+						<span class="strip-label">Style</span>
+						<div class="strip-items">
+							{#if cosmetics?.color}<span
+									class="mini-chip"
+									style:background={accentStyle}
+									style:color="#fff">🎨 {cosmetics.color.from}</span
+								>{/if}
+							{#if cosmetics?.banner}<span class="mini-chip"
+									>🏞️ {cosmetics.banner.cssClass?.replace('banner-', '') ?? 'banner'}</span
+								>{/if}
+							{#if cosmetics?.frame}<span class="mini-chip"
+									>🖼️ {cosmetics.frame.replace('frame-', '')}</span
+								>{/if}
+							{#if cosmetics?.flair}<span class="mini-chip">💫 {cosmetics.flair}</span>{/if}
+							{#if cosmetics?.badge}<span class="mini-chip">🎖️ {cosmetics.badge}</span>{/if}
+							{#if cosmetics?.effect}<span class="mini-chip"
+									>✨ {cosmetics.effect.replace('effect-', '')}</span
+								>{/if}
+							{#if cosmetics?.title}<span class="mini-chip">🏷️ {cosmetics.title}</span>{/if}
+						</div>
+					</div>
+				{:else}
+					<p class="faint hint">
+						No cosmetics equipped yet — run <code>/daily</code> and visit <code>/shop</code> in Discord
+						to style this card!
+					</p>
+				{/if}
+
+				{#if profile && !profile.levelingEnabled}
+					<div class="alert" style="margin-top:1rem">
+						⏸️ Leveling is paused right now — your XP is safe and this page keeps working.
+					</div>
+				{/if}
+				{#if lastActiveFmt}
+					<p class="faint last-active">Last active: {lastActiveFmt}</p>
+				{/if}
+
+				<div class="actions">
+					<button class="btn small" type="button" onclick={copyLink}
+						>{copied ? '✅ Copied!' : '🔗 Copy link'}</button
+					>
+					<a class="btn secondary small" href="/leaderboard{boardQuery}">🏆 Leaderboard</a>
+				</div>
 			</div>
 		</div>
-	</div>
 
-	<div class="card transparency">
-		<h2>🛡️ Your data, in plain view</h2>
-		<p class="muted">
-			This page shows <strong>everything</strong> we store about this account on this website:
-			a Discord user ID, the XP / level derived from public chat activity in
-			<em>{siteName}</em>, the day of the last counted message, and your equipped cosmetics.
-			No messages, emails, or IP logs.
-		</p>
-		<p class="muted">
-			🎨 <strong>Customise it:</strong> In Discord use <code>/daily</code> to earn gold, <code>/shop</code> to browse 30+ cosmetics (colours, titles, banners, frames, flair, badges, name effects) and <code>/equip</code> to style this card — it shines on the leaderboard too!
-		</p>
-		<p class="muted">
-			Want your entry removed? Use the <a href="/privacy">privacy page</a> — deletion is one
-			ask away (an admin can erase it instantly).
-		</p>
+		<div class="card transparency">
+			<h2>🛡️ Your data, in plain view</h2>
+			<p class="muted">
+				This page shows <strong>everything</strong> we store about this account on this website: a
+				Discord user ID, the XP / level derived from public chat activity in
+				<em>{siteName}</em>, the day of the last counted message, and your equipped cosmetics. No
+				messages, emails, or IP logs.
+			</p>
+			<p class="muted">
+				🎨 <strong>Customise it:</strong> In Discord use <code>/daily</code> to earn gold,
+				<code>/shop</code>
+				to browse 30+ cosmetics (colours, titles, banners, frames, flair, badges, name effects) and
+				<code>/equip</code> to style this card — it shines on the leaderboard too!
+			</p>
+			<p class="muted">
+				Want your entry removed? Use the <a href="/privacy">privacy page</a> — deletion is one ask away
+				(an admin can erase it instantly).
+			</p>
+		</div>
 	</div>
-</div>
 {/if}
 
 <style>
@@ -250,10 +298,10 @@
 		position: absolute;
 		inset: 0;
 		background-image:
-			radial-gradient(1px 1px at 12% 28%, rgba(255,255,255,0.55) 1px, transparent 1px),
-			radial-gradient(1px 1px at 68% 42%, rgba(255,255,255,0.45) 1px, transparent 1px),
-			radial-gradient(1.2px 1.2px at 38% 72%, rgba(255,255,255,0.4) 1px, transparent 1px),
-			radial-gradient(1px 1px at 82% 68%, rgba(255,255,255,0.35) 1px, transparent 1px);
+			radial-gradient(1px 1px at 12% 28%, rgba(255, 255, 255, 0.55) 1px, transparent 1px),
+			radial-gradient(1px 1px at 68% 42%, rgba(255, 255, 255, 0.45) 1px, transparent 1px),
+			radial-gradient(1.2px 1.2px at 38% 72%, rgba(255, 255, 255, 0.4) 1px, transparent 1px),
+			radial-gradient(1px 1px at 82% 68%, rgba(255, 255, 255, 0.35) 1px, transparent 1px);
 		background-size: 140px 80px;
 		opacity: 0.5;
 		pointer-events: none;
@@ -269,11 +317,15 @@
 		border-radius: 50%;
 		padding: 4px;
 		background: var(--bg-elev);
-		box-shadow: 0 8px 32px rgba(0,0,0,0.22), 0 0 0 3px var(--bg-elev);
+		box-shadow:
+			0 8px 32px rgba(0, 0, 0, 0.22),
+			0 0 0 3px var(--bg-elev);
 		position: relative;
 	}
 	.avatar-ring.no-frame {
-		box-shadow: 0 8px 32px rgba(0,0,0,0.2), 0 0 0 4px var(--bg-elev);
+		box-shadow:
+			0 8px 32px rgba(0, 0, 0, 0.2),
+			0 0 0 4px var(--bg-elev);
 	}
 	.flair-bubble {
 		position: absolute;
@@ -331,7 +383,7 @@
 		color: #412d00;
 		font-weight: 800;
 		font-size: 0.8rem;
-		box-shadow: 0 2px 10px rgba(245,166,35,0.35);
+		box-shadow: 0 2px 10px rgba(245, 166, 35, 0.35);
 	}
 	.lvl-chip {
 		display: inline-block;
@@ -449,7 +501,11 @@
 	}
 
 	@media (max-width: 480px) {
-		.profile-card { max-width: 100%; }
-		.transparency { max-width: 100%; }
+		.profile-card {
+			max-width: 100%;
+		}
+		.transparency {
+			max-width: 100%;
+		}
 	}
 </style>

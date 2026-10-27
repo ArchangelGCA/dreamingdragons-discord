@@ -3,7 +3,7 @@
  * as `data-theme` on <html>. The pre-paint script in app.html sets the initial
  * attribute; this store keeps it in sync with the UI toggle.
  */
-import { browser } from '$app/environment';
+import { browser } from '$app/env';
 
 export type Theme = 'light' | 'dark' | 'system';
 

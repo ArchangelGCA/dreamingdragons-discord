@@ -45,6 +45,11 @@ services:
     build:
       context: .
       dockerfile: web/Dockerfile
+      args:
+        # SvelteKit 3 bakes the canonical origin at BUILD time (`paths.origin`) —
+        # ORIGIN is no longer read at runtime. Changing ORIGIN requires a rebuild:
+        #   docker compose up -d --build web
+        ORIGIN: ${ORIGIN:-http://localhost:3000}
     container_name: ddbot-web
     restart: unless-stopped
     depends_on:
@@ -59,8 +64,11 @@ services:
       # minimal, GDPR-safe fields are ever exposed (see web/src/lib/server/public.ts).
       - POCKETBASE_ADMIN_EMAIL=${POCKETBASE_ADMIN_EMAIL}
       - POCKETBASE_ADMIN_PASSWORD=${POCKETBASE_ADMIN_PASSWORD}
+      # Kept for `Secure`-cookie decisions; the URL itself is baked into the build.
       - ORIGIN=${ORIGIN:-http://localhost:3000}
       - PORT=3000
+      # Max request body (PocketBase admin uploads proxied through /pb/*).
+      - BODY_SIZE_LIMIT=${BODY_SIZE_LIMIT:-20M}
       # Server-side bridge to the bot's internal API (names + Discord actions).
       # Must share the same secret as the bot; host/port must match BOT_API_PORT.
       - INTERNAL_API_SECRET=${INTERNAL_API_SECRET}

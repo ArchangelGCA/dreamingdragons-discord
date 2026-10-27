@@ -7,14 +7,14 @@
  * offline we still honour the cookie so PocketBase-only pages keep working.
  */
 import type { Cookies } from '@sveltejs/kit';
-import { env } from '$env/dynamic/private';
+import { ORIGIN } from '$app/env/private';
 import { getGuilds, botConfigured, type GuildDTO } from './bot';
 
 export const GUILD_COOKIE = 'dd_guild';
 
 // Mirror the auth-cookie policy in hooks.server.ts: Secure when served over
 // HTTPS (tunnel/production), plain for local HTTP dev.
-const SECURE_COOKIES = (env.ORIGIN || '').startsWith('https://');
+const SECURE_COOKIES = ORIGIN.startsWith('https://');
 
 export interface GuildContext {
 	guilds: GuildDTO[];

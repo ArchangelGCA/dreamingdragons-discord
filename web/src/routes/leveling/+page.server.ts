@@ -1,6 +1,6 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import type { LevelSettings, LevelReward } from '$lib/types';
+import type { LevelSettings, LevelReward } from '#lib/types.js';
 import {
 	getRoles,
 	getChannels,
@@ -9,7 +9,7 @@ import {
 	recoverXp,
 	type RoleDTO,
 	type ChannelDTO
-} from '$lib/server/bot';
+} from '#lib/server/bot.js';
 
 const SNOWFLAKE = /^\d{5,25}$/;
 
@@ -25,9 +25,10 @@ export const load: PageServerLoad = async ({ locals, parent }) => {
 			.collection('level_settings')
 			.getList<LevelSettings>(1, 1, { filter: pb.filter('guild_id = {:g}', { g: gid }) });
 		settings = s.items[0] ?? null;
-		rewards = await pb
-			.collection('level_rewards')
-			.getFullList<LevelReward>({ filter: pb.filter('guild_id = {:g}', { g: gid }), sort: 'level' });
+		rewards = await pb.collection('level_rewards').getFullList<LevelReward>({
+			filter: pb.filter('guild_id = {:g}', { g: gid }),
+			sort: 'level'
+		});
 	}
 
 	let roles: RoleDTO[] = [];
@@ -64,9 +65,13 @@ export const actions: Actions = {
 			const existing = await locals.pb
 				.collection('level_settings')
 				.getList(1, 1, { filter: locals.pb.filter('guild_id = {:g}', { g: guild_id }) });
-			if (existing.totalItems > 0) await locals.pb.collection('level_settings').update(existing.items[0].id, data);
+			if (existing.totalItems > 0)
+				await locals.pb.collection('level_settings').update(existing.items[0].id, data);
 			else await locals.pb.collection('level_settings').create({ guild_id, ...data });
-			return { success: 'Settings saved directly (bot offline — changes apply within 15 min or on restart).' };
+			return {
+				success:
+					'Settings saved directly (bot offline — changes apply within 15 min or on restart).'
+			};
 		} catch {
 			return fail(400, { error: 'Failed to save settings.' });
 		}
@@ -119,7 +124,9 @@ export const actions: Actions = {
 		if (!SNOWFLAKE.test(guild_id)) return fail(400, { error: 'Invalid guild.' });
 		const res = await syncRoles(guild_id);
 		if (!res.ok) return fail(502, { error: res.error });
-		return { success: `Synced roles: ${res.data.success} ok, ${res.data.failed} failed (of ${res.data.total}).` };
+		return {
+			success: `Synced roles: ${res.data.success} ok, ${res.data.failed} failed (of ${res.data.total}).`
+		};
 	},
 
 	previewRecover: async ({ request }) => {
@@ -143,4 +150,3 @@ export const actions: Actions = {
 		};
 	}
 };
-

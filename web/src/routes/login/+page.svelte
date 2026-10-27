@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { fade, fly, scale } from 'svelte/transition';
-	import { animateIn } from '$lib/actions/animate';
+	import { animateIn } from '#lib/actions/animate.js';
 
 	let { form } = $props();
 </script>
@@ -21,12 +21,27 @@
 
 		<form method="POST" use:enhance>
 			<label for="email">Email</label>
-			<input id="email" name="email" type="email" value={form?.email ?? ''} required autocomplete="username" />
+			<input
+				id="email"
+				name="email"
+				type="email"
+				value={form?.email ?? ''}
+				required
+				autocomplete="username"
+			/>
 
 			<label for="password">Password</label>
-			<input id="password" name="password" type="password" required autocomplete="current-password" />
+			<input
+				id="password"
+				name="password"
+				type="password"
+				required
+				autocomplete="current-password"
+			/>
 
-			<button class="btn" style="width:100%;margin-top:1.25rem;justify-content:center">Sign in</button>
+			<button class="btn" style="width:100%;margin-top:1.25rem;justify-content:center"
+				>Sign in</button
+			>
 		</form>
 	</div>
 </div>
@@ -86,7 +101,7 @@
 	.logo {
 		font-size: 2.5rem;
 	}
-		form {
+	form {
 		text-align: left;
 		margin-top: 1rem;
 	}

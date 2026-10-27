@@ -12,14 +12,16 @@
  * own data (GDPR transparency, Art. 15).
  */
 import PocketBase from 'pocketbase';
-import { env } from '$env/dynamic/private';
-import { calculateLevelFromXp } from '$lib/leveling';
-import { resolveEquipped, type PublicCosmetics } from '$lib/cosmetics';
-import { getGuilds, resolveMembers, type GuildDTO } from './bot';
 
-const PB_URL = env.POCKETBASE_URL || 'http://127.0.0.1:8090';
-const EMAIL = env.POCKETBASE_ADMIN_EMAIL || '';
-const PASSWORD = env.POCKETBASE_ADMIN_PASSWORD || '';
+import {
+	POCKETBASE_ADMIN_EMAIL as EMAIL,
+	POCKETBASE_ADMIN_PASSWORD as PASSWORD,
+	POCKETBASE_URL as PB_URL
+} from '$app/env/private';
+
+import { calculateLevelFromXp } from '#lib/leveling.js';
+import { resolveEquipped, type PublicCosmetics } from '#lib/cosmetics.js';
+import { getGuilds, resolveMembers, type GuildDTO } from './bot';
 
 // ── Internal superuser client (per-process singleton, lazily authenticated) ──
 
@@ -141,9 +143,18 @@ async function levelingEnabled(pb: PocketBase, guildId: string): Promise<boolean
 async function guildStats(pb: PocketBase, guildId: string): Promise<GuildStats> {
 	const gf = pb.filter('guild_id = {:g}', { g: guildId });
 	const [users, rewards, settings] = await Promise.all([
-		pb.collection('user_levels').getList(1, 1, { filter: gf, fields: 'id' }).catch(() => null),
-		pb.collection('level_rewards').getList(1, 1, { filter: gf, fields: 'id' }).catch(() => null),
-		pb.collection('level_settings').getList(1, 1, { filter: gf, fields: 'enabled' }).catch(() => null)
+		pb
+			.collection('user_levels')
+			.getList(1, 1, { filter: gf, fields: 'id' })
+			.catch(() => null),
+		pb
+			.collection('level_rewards')
+			.getList(1, 1, { filter: gf, fields: 'id' })
+			.catch(() => null),
+		pb
+			.collection('level_settings')
+			.getList(1, 1, { filter: gf, fields: 'enabled' })
+			.catch(() => null)
 	]);
 	return {
 		leveledMembers: users?.totalItems ?? 0,
@@ -193,8 +204,15 @@ async function leaderboardPage(
 	});
 
 	const [members, cosmeticsMap] = await Promise.all([
-		resolveMembers(guildId, list.items.map((u) => u.user_id)),
-		batchCosmetics(pb, guildId, list.items.map((u) => u.user_id))
+		resolveMembers(
+			guildId,
+			list.items.map((u) => u.user_id)
+		),
+		batchCosmetics(
+			pb,
+			guildId,
+			list.items.map((u) => u.user_id)
+		)
 	]);
 
 	const entries: PublicEntry[] = list.items.map((u, i) => {
@@ -239,7 +257,9 @@ async function publicProfile(
 
 	const ahead = await pb
 		.collection('user_levels')
-		.getList(1, 1, { filter: pb.filter('guild_id = {:g} && xp > {:xp}', { g: guildId, xp: rec.xp }) })
+		.getList(1, 1, {
+			filter: pb.filter('guild_id = {:g} && xp > {:xp}', { g: guildId, xp: rec.xp })
+		})
 		.catch(() => null);
 
 	const members = await resolveMembers(guildId, [userId]);
@@ -305,9 +325,7 @@ export async function loadPublicHome(guildId: string): Promise<PublicHome | null
 	if (!pb) return null;
 	try {
 		const stats = await guildStats(pb, guildId);
-		const top = stats.levelingEnabled
-			? (await leaderboardPage(pb, guildId, 1, 3)).entries
-			: [];
+		const top = stats.levelingEnabled ? (await leaderboardPage(pb, guildId, 1, 3)).entries : [];
 		return { stats, top };
 	} catch {
 		return null;
@@ -333,7 +351,13 @@ export async function loadPublicLeaderboard(
 	if (!pb) return null;
 	try {
 		if (!(await levelingEnabled(pb, guildId))) {
-			return { entries: [], total: 0, totalPages: 1, page: 1, disabled: true };
+			return {
+				entries: [],
+				total: 0,
+				totalPages: 1,
+				page: 1,
+				disabled: true
+			};
 		}
 		const data = await leaderboardPage(pb, guildId, page, perPage);
 		return { ...data, disabled: false };
@@ -348,6 +372,7 @@ export async function loadPublicProfile(
 	userId: string
 ): Promise<(Awaited<ReturnType<typeof publicProfile>> & { levelingEnabled: boolean }) | null> {
 	if (!/^\d{5,25}$/.test(userId)) return null;
+
 	const pb = await publicPb();
 	if (!pb) return null;
 	try {

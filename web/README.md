@@ -1,42 +1,22 @@
-# sv
+# dd-bot — web
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+SvelteKit 3 + Svelte 5 dashboard and public site for [dd-bot](../README.md).
 
-## Creating a project
-
-If you're seeing this, you've probably already done this step. Congrats!
+Run everything from this directory:
 
 ```sh
-# create a new project
-npx sv create my-app
+bun install
+bun run dev        # vite dev (default: http://localhost:5173)
+bun run check      # svelte-check — 0 errors expected
+bun run build      # production build → build/ (Bun.serve entrypoint)
+bun run format     # bun fmt (config in bunfig.toml)
 ```
 
-To recreate this project with the same configuration:
+See the [root README](../README.md) for configuration (`ORIGIN`, `POCKETBASE_*`,
+`INTERNAL_API_SECRET`), Docker deployment and the ARM64 notes, and
+[`../AGENTS.md`](../AGENTS.md) for architecture and gotchas.
 
-```sh
-# recreate this project
-npx sv@0.17.0 create --template minimal --types ts --add sveltekit-adapter="adapter:node" --no-download-check --install npm web
-```
-
-## Developing
-
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
-
-```sh
-npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
-```
-
-## Building
-
-To create a production version of your app:
-
-```sh
-npm run build
-```
-
-You can preview the production build with `npm run preview`.
-
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+> Environment variables are declared and validated in [`src/env.ts`](src/env.ts)
+> and imported from `$app/env/private`. `ORIGIN` is baked into the build
+> (`paths.origin`) — in Docker it is passed as a build arg, so changing it
+> requires rebuilding the image.

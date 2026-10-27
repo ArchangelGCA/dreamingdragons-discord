@@ -1,6 +1,6 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import type { ReactionRole } from '$lib/types';
+import type { ReactionRole } from '#lib/types.js';
 import {
 	getRoles,
 	getChannels,
@@ -18,7 +18,7 @@ import {
 	type ChannelDTO,
 	type BotMessageDTO,
 	type ReactionEntryInput
-} from '$lib/server/bot';
+} from '#lib/server/bot.js';
 
 const SNOWFLAKE = /^\d{5,25}$/;
 
@@ -44,9 +44,10 @@ export const load: PageServerLoad = async ({ locals, parent, url }) => {
 	let groups: Group[] = [];
 	let total = 0;
 	if (gid) {
-		const records = await locals.pb
-			.collection('reaction_roles')
-			.getFullList<ReactionRole>({ filter: locals.pb.filter('guild_id = {:g}', { g: gid }), sort: 'created' });
+		const records = await locals.pb.collection('reaction_roles').getFullList<ReactionRole>({
+			filter: locals.pb.filter('guild_id = {:g}', { g: gid }),
+			sort: 'created'
+		});
 		total = records.length;
 		const map = new Map<string, Group>();
 		for (const r of records) {
@@ -75,7 +76,10 @@ export const load: PageServerLoad = async ({ locals, parent, url }) => {
 		// Flag which stored messages still exist on Discord (so we can offer "resend"),
 		// and carry their current embed content so the edit form can be pre-filled.
 		if (groups.length > 0) {
-			const statuses = await getMessagesStatus(gid, groups.map((g) => g.message_id));
+			const statuses = await getMessagesStatus(
+				gid,
+				groups.map((g) => g.message_id)
+			);
 			for (const g of groups) {
 				const st = statuses[g.message_id];
 				g.exists = st?.exists ?? true;
@@ -140,7 +144,8 @@ export const actions: Actions = {
 		const f = await request.formData();
 		const guild_id = String(f.get('guild_id') || '').trim();
 		const message_id = String(f.get('message_id') || '').trim();
-		if (!SNOWFLAKE.test(guild_id) || !SNOWFLAKE.test(message_id)) return fail(400, { error: 'Invalid target.' });
+		if (!SNOWFLAKE.test(guild_id) || !SNOWFLAKE.test(message_id))
+			return fail(400, { error: 'Invalid target.' });
 		// The form is pre-filled with the message's current content, so this is a
 		// full replace: send every field as-is (empty title/color clear them). A
 		// blank description is rejected because a message needs body text.
@@ -201,7 +206,8 @@ export const actions: Actions = {
 		const f = await request.formData();
 		const guild_id = String(f.get('guild_id') || '').trim();
 		const message_id = String(f.get('message_id') || '').trim();
-		if (!SNOWFLAKE.test(guild_id) || !SNOWFLAKE.test(message_id)) return fail(400, { error: 'Invalid target.' });
+		if (!SNOWFLAKE.test(guild_id) || !SNOWFLAKE.test(message_id))
+			return fail(400, { error: 'Invalid target.' });
 		const res = await deleteReactionMessage(guild_id, message_id, f.get('delete_discord') === 'on');
 		if (!res.ok) return fail(502, { error: res.error });
 		return { success: `Deleted message group (${res.data.removed} entr(ies)).` };
@@ -243,7 +249,8 @@ export const actions: Actions = {
 		const f = await request.formData();
 		const guild_id = String(f.get('guild_id') || '').trim();
 		const message_id = String(f.get('message_id') || '').trim();
-		if (!SNOWFLAKE.test(guild_id) || !SNOWFLAKE.test(message_id)) return fail(400, { error: 'Invalid target.' });
+		if (!SNOWFLAKE.test(guild_id) || !SNOWFLAKE.test(message_id))
+			return fail(400, { error: 'Invalid target.' });
 		const channelId = String(f.get('channel_id') || '').trim();
 		const embed = {
 			title: String(f.get('title') || '').trim() || undefined,
@@ -258,4 +265,3 @@ export const actions: Actions = {
 		return { success: `Message re-posted (${res.data.count} role(s) restored).` };
 	}
 };
-

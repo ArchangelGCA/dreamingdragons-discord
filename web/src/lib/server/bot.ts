@@ -8,15 +8,13 @@
  * Every call returns a BotResult and NEVER throws, so pages can degrade gracefully
  * to raw IDs + a banner when the bot is offline or unconfigured.
  */
-import { env } from '$env/dynamic/private';
+import { BOT_API_URL, INTERNAL_API_SECRET } from '$app/env/private';
 
-const BASE = (env.BOT_API_URL || 'http://bot:8787').replace(/\/+$/, '');
-const SECRET = env.INTERNAL_API_SECRET || '';
+const BASE = BOT_API_URL;
+const SECRET = INTERNAL_API_SECRET;
 const TIMEOUT_MS = 5000;
 
-export type BotResult<T> =
-	| { ok: true; data: T }
-	| { ok: false; error: string; status?: number };
+export type BotResult<T> = { ok: true; data: T } | { ok: false; error: string; status?: number };
 
 export interface GuildDTO {
 	id: string;
@@ -94,7 +92,11 @@ async function botFetch<T>(path: string, init?: RequestInit): Promise<BotResult<
 			return { ok: false, error: `Bot API error (${res.status}).`, status: res.status };
 		}
 		if (!res.ok) {
-			return { ok: false, error: body?.error || `Bot API error (${res.status}).`, status: res.status };
+			return {
+				ok: false,
+				error: body?.error || `Bot API error (${res.status}).`,
+				status: res.status
+			};
 		}
 		return { ok: true, data: body as T };
 	} catch {
@@ -324,11 +326,11 @@ export async function getMessagesStatus(
 	messageIds: string[]
 ): Promise<Record<string, MessageStatus>> {
 	if (messageIds.length === 0) return {};
+
 	const r = await botFetch<{ statuses: Record<string, MessageStatus> }>(
 		`/guilds/${guildId}/reaction-roles/status`,
 		{ method: 'POST', body: JSON.stringify({ messageIds }) }
 	);
+
 	return r.ok ? r.data.statuses : {};
 }
-
-

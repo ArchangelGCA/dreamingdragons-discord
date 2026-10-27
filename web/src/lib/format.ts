@@ -25,7 +25,10 @@ export function gradientFor(seed: string): string {
 }
 
 /** Ensure a hex/color string is safe to drop into a style attribute. */
-export function safeColor(color: string | null | undefined, fallback = 'var(--text-muted)'): string {
+export function safeColor(
+	color: string | null | undefined,
+	fallback = 'var(--text-muted)'
+): string {
 	if (!color) return fallback;
 	return /^#[0-9a-fA-F]{3,8}$/.test(color) ? color : fallback;
 }

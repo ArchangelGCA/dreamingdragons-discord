@@ -1,5 +1,5 @@
 import type { LayoutServerLoad } from './$types';
-import { loadGuildContext } from '$lib/server/guild';
+import { loadGuildContext } from '#lib/server/guild.js';
 
 export const load: LayoutServerLoad = async ({ locals, cookies }) => {
 	if (!locals.admin) {

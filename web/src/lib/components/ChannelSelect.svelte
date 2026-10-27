@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { ChannelDTO } from '$lib/server/bot';
+	import type { ChannelDTO } from '#lib/server/bot.js';
 
 	let {
 		name,

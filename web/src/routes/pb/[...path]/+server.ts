@@ -1,8 +1,8 @@
 import { redirect } from '@sveltejs/kit';
-import { env } from '$env/dynamic/private';
+import { POCKETBASE_URL } from '$app/env/private';
 import type { RequestHandler } from './$types';
 
-const TARGET = (env.POCKETBASE_URL || 'http://127.0.0.1:8090').replace(/\/+$/, '');
+const TARGET = POCKETBASE_URL;
 const PREFIX = '/pb';
 
 // Defer to PocketBase's own trailing-slash handling — without this SvelteKit

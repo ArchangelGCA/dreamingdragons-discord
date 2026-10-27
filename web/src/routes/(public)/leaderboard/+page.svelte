@@ -1,8 +1,8 @@
 <script lang="ts">
-	import Avatar from '$lib/components/Avatar.svelte';
-	import { anonymize } from '$lib/format';
-	import { formatNumber, levelProgress } from '$lib/leveling';
-	import { animateIn } from '$lib/actions/animate';
+	import Avatar from '#lib/components/Avatar.svelte';
+	import { anonymize } from '#lib/format.js';
+	import { formatNumber, levelProgress } from '#lib/leveling.js';
+	import { animateIn } from '#lib/actions/animate.js';
 
 	let { data } = $props();
 
@@ -13,9 +13,7 @@
 	const medals = ['🥇', '🥈', '🥉'];
 
 	/** Query string that keeps the guild selection across pages/changes. */
-	const gQuery = $derived(
-		pub.guild && pub.guilds.length > 1 ? `g=${pub.guild.id}` : ''
-	);
+	const gQuery = $derived(pub.guild && pub.guilds.length > 1 ? `g=${pub.guild.id}` : '');
 	function pageHref(p: number): string {
 		const params = new URLSearchParams();
 		if (gQuery) params.set('g', pub.guild!.id);
@@ -33,7 +31,7 @@
 	function titleFor(u: any): string | null {
 		return u.cosmetics?.title ?? null;
 	}
-	function colorFor(u: any): {from:string,to:string} | null {
+	function colorFor(u: any): { from: string; to: string } | null {
 		return u.cosmetics?.color ?? null;
 	}
 </script>
@@ -41,14 +39,18 @@
 <svelte:head>
 	<title>Leaderboard — {siteName}</title>
 	<meta property="og:title" content="{siteName} — Leaderboard" />
-	<meta property="og:description" content="Who's leading in {siteName}? Live XP rankings with custom cosmetics from daily rewards." />
+	<meta
+		property="og:description"
+		content="Who's leading in {siteName}? Live XP rankings with custom cosmetics from daily rewards."
+	/>
 </svelte:head>
 
 <div class="topbar">
 	<div>
 		<h1>🏆 Leaderboard</h1>
 		<p class="muted">
-			{#if guild}Top members of <strong>{siteName}</strong> by XP — styles from <code>/daily</code> & <code>/shop</code>.{:else}Community XP rankings.{/if}
+			{#if guild}Top members of <strong>{siteName}</strong> by XP — styles from <code>/daily</code>
+				& <code>/shop</code>.{:else}Community XP rankings.{/if}
 		</p>
 	</div>
 	{#if pub.guilds.length > 1 && pub.guild}
@@ -64,7 +66,9 @@
 </div>
 
 {#if !guild}
-	<div class="alert error">The leaderboard is not available right now — please check back later.</div>
+	<div class="alert error">
+		The leaderboard is not available right now — please check back later.
+	</div>
 {:else if !board}
 	<div class="alert error">Stats are temporarily unavailable. Please try again later.</div>
 {:else if board.disabled}
@@ -79,7 +83,9 @@
 	</div>
 {:else}
 	{#if !pub.botOnline}
-		<div class="alert">Names are hidden right now — members appear as pseudonyms until the bot reconnects.</div>
+		<div class="alert">
+			Names are hidden right now — members appear as pseudonyms until the bot reconnects.
+		</div>
 	{/if}
 	<div class="board card">
 		{#each board.entries as u, i (u.userId)}
@@ -95,7 +101,9 @@
 				href="/u/{u.userId}{gQuery ? `?${gQuery}` : ''}"
 				use:animateIn={{ delay: Math.min(i, 12) * 22 }}
 				style:border-left={color ? `3px solid ${color.from}` : undefined}
-				style:background={u.rank<=3 && color ? `linear-gradient(90deg, ${color.from}14, transparent 65%)` : undefined}
+				style:background={u.rank <= 3 && color
+					? `linear-gradient(90deg, ${color.from}14, transparent 65%)`
+					: undefined}
 			>
 				<span class="rank" class:top={u.rank <= 3}>{medals[u.rank - 1] ?? u.rank}</span>
 				<span class="avatar-stack">
@@ -112,10 +120,24 @@
 						<span class="row-title">{title}</span>
 					{/if}
 					<span class="bar">
-						<span class="progress"><span style:width={`${p.pct}%`} style:background={color ? `linear-gradient(90deg, ${color.from}, ${color.to})` : undefined}></span></span>
+						<span class="progress"
+							><span
+								style:width={`${p.pct}%`}
+								style:background={color
+									? `linear-gradient(90deg, ${color.from}, ${color.to})`
+									: undefined}
+							></span></span
+						>
 					</span>
 				</span>
-				<span class="lvl-chip" style:background={color ? `linear-gradient(135deg, ${color.from}22, ${color.to}22)` : undefined} style:color={color ? color.from : undefined} style:border-color={color ? color.from + '55' : undefined}>Lv {u.level}</span>
+				<span
+					class="lvl-chip"
+					style:background={color
+						? `linear-gradient(135deg, ${color.from}22, ${color.to}22)`
+						: undefined}
+					style:color={color ? color.from : undefined}
+					style:border-color={color ? color.from + '55' : undefined}>Lv {u.level}</span
+				>
 				<span class="xp faint">{formatNumber(u.xp)} XP</span>
 			</a>
 		{/each}
@@ -123,9 +145,13 @@
 
 	{#if board.totalPages > 1}
 		<div class="cluster pager">
-			{#if board.page > 1}<a class="btn secondary small" href={pageHref(board.page - 1)}>← Prev</a>{/if}
+			{#if board.page > 1}<a class="btn secondary small" href={pageHref(board.page - 1)}>← Prev</a
+				>{/if}
 			<span class="muted">Page {board.page} / {board.totalPages}</span>
-			{#if board.page < board.totalPages}<a class="btn secondary small" href={pageHref(board.page + 1)}>Next →</a>{/if}
+			{#if board.page < board.totalPages}<a
+					class="btn secondary small"
+					href={pageHref(board.page + 1)}>Next →</a
+				>{/if}
 		</div>
 	{/if}
 	<p class="faint foot-note">
@@ -277,13 +303,27 @@
 		margin-top: 0.9rem;
 	}
 	/* Subtle frame ring for premium frames on leaderboard rows */
-	.board-row.frame-glow { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08); }
-	.board-row.frame-rainbow { border-left-color: transparent !important; }
-	.board-row.frame-rainbow::before { border-radius: var(--radius-sm); }
+	.board-row.frame-glow {
+		box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+	}
+	.board-row.frame-rainbow {
+		border-left-color: transparent !important;
+	}
+	.board-row.frame-rainbow::before {
+		border-radius: var(--radius-sm);
+	}
 
 	@media (max-width: 640px) {
-		.board-row { gap: 0.55rem; padding: 0.55rem 0.4rem; }
-		.xp { min-width: 60px; font-size: 0.78rem; }
-		.lvl-chip { padding: 0.16rem 0.5rem; }
+		.board-row {
+			gap: 0.55rem;
+			padding: 0.55rem 0.4rem;
+		}
+		.xp {
+			min-width: 60px;
+			font-size: 0.78rem;
+		}
+		.lvl-chip {
+			padding: 0.16rem 0.5rem;
+		}
 	}
 </style>

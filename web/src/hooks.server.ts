@@ -1,12 +1,11 @@
+import { redirect } from '@sveltejs/kit';
+import type { Handle, HandleServerError } from '@sveltejs/kit/hooks';
 import PocketBase from 'pocketbase';
-import { redirect, type Handle } from '@sveltejs/kit';
-import { env } from '$env/dynamic/private';
-
-const PB_URL = env.POCKETBASE_URL || 'http://127.0.0.1:8090';
+import { ORIGIN, POCKETBASE_URL } from '$app/env/private';
 
 // Harden the auth cookie when the dashboard is served over HTTPS (e.g. behind the
 // Cloudflare Tunnel). Stays non-secure for local plain-HTTP dev so login still works.
-const SECURE_COOKIES = (env.ORIGIN || '').startsWith('https://');
+const SECURE_COOKIES = ORIGIN.startsWith('https://');
 
 // Pages reachable without an authenticated session (the public site + login).
 const PUBLIC_PAGE_PATTERNS: RegExp[] = [
@@ -94,7 +93,7 @@ function applySecurityHeaders(res: Response): void {
 }
 
 export const handle: Handle = async ({ event, resolve }) => {
-	const pb = new PocketBase(PB_URL);
+	const pb = new PocketBase(POCKETBASE_URL);
 	pb.autoCancellation(false);
 
 	// Public site: no auth work at all (no cookie read, no token refresh, no
@@ -146,9 +145,27 @@ export const handle: Handle = async ({ event, resolve }) => {
 	// secure is enabled automatically when ORIGIN is https (production/tunnel).
 	response.headers.append(
 		'set-cookie',
-		pb.authStore.exportToCookie({ httpOnly: true, secure: SECURE_COOKIES, sameSite: 'Lax', path: '/' })
+		pb.authStore.exportToCookie({
+			httpOnly: true,
+			secure: SECURE_COOKIES,
+			sameSite: 'Lax',
+			path: '/'
+		})
 	);
 	applySecurityHeaders(response);
 
 	return response;
+};
+
+/**
+ * SvelteKit 3 runs `handleError` for *every* error (previously only unexpected
+ * ones), including those thrown deliberately with `error(...)` and errors raised
+ * while rendering. Returning nothing keeps SvelteKit's defaults — the message
+ * from `error(...)`, or a generic one for unknown failures — so we only log the
+ * unexpected ones instead of leaking stack traces to visitors.
+ */
+export const handleError: HandleServerError = ({ kind, error, event }) => {
+	if (kind === 'unknown') {
+		console.error(`[web] ${event.request.method} ${event.url.pathname} failed:`, error);
+	}
 };

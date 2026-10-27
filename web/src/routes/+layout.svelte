@@ -1,12 +1,12 @@
 <script lang="ts">
 	import '../app.css';
-	import favicon from '$lib/assets/favicon.svg';
+	import favicon from '#lib/assets/favicon.svg';
 	import { page } from '$app/state';
-	import GuildSwitcher from '$lib/components/GuildSwitcher.svelte';
-	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
-	import Avatar from '$lib/components/Avatar.svelte';
-	import Toasts from '$lib/components/Toasts.svelte';
-	import { pushToast } from '$lib/toast.svelte';
+	import GuildSwitcher from '#lib/components/GuildSwitcher.svelte';
+	import ThemeToggle from '#lib/components/ThemeToggle.svelte';
+	import Avatar from '#lib/components/Avatar.svelte';
+	import Toasts from '#lib/components/Toasts.svelte';
+	import { pushToast } from '#lib/toast.svelte.js';
 
 	let { data, children } = $props();
 
@@ -19,7 +19,7 @@
 
 	// Surface form action results (success/error) as toasts, once each.
 	// `page.form` persists after an action and the effect can re-run on every
-	// `invalidateAll()` (triggered by use:enhance `update()`), so guard against
+	// `refreshAll()` (triggered by use:enhance `update()`), so guard against
 	// re-toasting the same result object — otherwise a single submit produces a
 	// burst of duplicate toasts.
 	let lastForm: unknown = null;

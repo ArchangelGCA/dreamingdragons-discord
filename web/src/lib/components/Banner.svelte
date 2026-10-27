@@ -1,10 +1,8 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 
-	let {
-		kind = 'info',
-		children
-	}: { kind?: 'info' | 'warn' | 'error'; children: Snippet } = $props();
+	let { kind = 'info', children }: { kind?: 'info' | 'warn' | 'error'; children: Snippet } =
+		$props();
 
 	const icon = { info: 'ℹ️', warn: '⚠️', error: '⛔' } as const;
 </script>

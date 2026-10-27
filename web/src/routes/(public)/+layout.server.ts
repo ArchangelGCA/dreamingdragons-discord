@@ -1,5 +1,5 @@
 import type { LayoutServerLoad } from './$types';
-import { pickGuild } from '$lib/server/public';
+import { pickGuild } from '#lib/server/public.js';
 
 /**
  * Shared context for the public pages: which guild to show, all public guilds

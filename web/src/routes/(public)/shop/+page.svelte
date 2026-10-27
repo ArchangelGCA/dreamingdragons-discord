@@ -1,10 +1,10 @@
 <script lang="ts">
-	import Avatar from '$lib/components/Avatar.svelte';
-	import { COSMETICS, SLOTS, rarityFor } from '$lib/cosmetics';
-	import type { CosmeticDef } from '$lib/cosmetics';
-	import { animateIn } from '$lib/actions/animate';
+	import Avatar from '#lib/components/Avatar.svelte';
+	import { COSMETICS, SLOTS, rarityFor } from '#lib/cosmetics.js';
+	import type { CosmeticDef } from '#lib/cosmetics.js';
+	import { animateIn } from '#lib/actions/animate.js';
 	import { page } from '$app/state';
-	import { replaceState } from '$app/navigation';
+	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 
 	let { data } = $props();
@@ -44,7 +44,10 @@
 	function initialPreview(): Record<string, string> {
 		const raw = page.url.searchParams.get('item') ?? page.url.searchParams.get('preview');
 		if (!raw) return {};
-		const ids = raw.split(',').map((s) => s.trim()).filter(Boolean);
+		const ids = raw
+			.split(',')
+			.map((s) => s.trim())
+			.filter(Boolean);
 		const out: Record<string, string> = {};
 		for (const id of ids) {
 			const found = COSMETICS.find((c) => c.id === id);
@@ -64,7 +67,8 @@
 	}
 
 	function buildShopUrl(slot: string | null, itemId: string | null, q: string | null): string {
-		const params = new URLSearchParams(page.url.searchParams);
+		// `page.url` is readonly in SvelteKit 3 — copy it before mutating.
+		const params = new URL(page.url.href).searchParams;
 		if (slot && slot !== 'all') params.set('slot', slot);
 		else params.delete('slot');
 		params.delete('category');
@@ -77,8 +81,8 @@
 		return qs ? `${page.url.pathname}?${qs}` : page.url.pathname;
 	}
 
-	// page.url doesn't reliably reflect our own replaceState calls, so track the
-	// last URL we pushed instead of comparing against page.url
+	// Track the last URL we navigated to instead of comparing against page.url
+	// (shallow `goto` updates it asynchronously), so we never loop.
 	let lastSyncedUrl: string | null = null;
 	function syncUrl() {
 		if (typeof window === 'undefined') return;
@@ -86,7 +90,7 @@
 		if (lastSyncedUrl === null) lastSyncedUrl = window.location.pathname + window.location.search;
 		if (url === lastSyncedUrl) return;
 		lastSyncedUrl = url;
-		replaceState(url, {});
+		goto(url, { shallow: true, replace: true });
 	}
 
 	// Keep URL in sync when filters/preview change (search debounced)
@@ -135,6 +139,7 @@
 			const matchSlot = activeSlot === 'all' || c.slot === activeSlot;
 			if (!matchSlot) return false;
 			if (!q) return true;
+
 			return (
 				c.name.toLowerCase().includes(q) ||
 				c.description.toLowerCase().includes(q) ||
@@ -178,11 +183,21 @@
 
 	// resolved preview for the mock card
 	const previewCos = $derived.by(() => {
-		const out: any = { color: null, banner: null, frame: null, flair: null, badge: null, effect: null, title: null, titleEmoji: null };
+		const out: any = {
+			color: null,
+			banner: null,
+			frame: null,
+			flair: null,
+			badge: null,
+			effect: null,
+			title: null,
+			titleEmoji: null
+		};
 		for (const [slot, id] of Object.entries(preview)) {
 			const item = COSMETICS.find((c) => c.id === id);
 			if (!item) continue;
-			if (slot === 'color' && item.palette) out.color = { from: item.palette[0], to: item.palette[1] };
+			if (slot === 'color' && item.palette)
+				out.color = { from: item.palette[0], to: item.palette[1] };
 			if (slot === 'banner') out.banner = item;
 			if (slot === 'frame') out.frame = item.cssClass ?? null;
 			if (slot === 'flair') out.flair = item.emoji;
@@ -197,7 +212,9 @@
 	});
 
 	const accentStyle = $derived(
-		previewCos.color ? `linear-gradient(90deg, ${previewCos.color.from}, ${previewCos.color.to})` : null
+		previewCos.color
+			? `linear-gradient(90deg, ${previewCos.color.from}, ${previewCos.color.to})`
+			: null
 	);
 
 	const previewName = 'Preview User';
@@ -206,7 +223,9 @@
 
 <svelte:head>
 	<title>Shop — {siteName} cosmetics preview</title>
+
 	<meta property="og:title" content="Shop — {siteName} cosmetics" />
+
 	<meta
 		property="og:description"
 		content="Preview 40+ cosmetics for {siteName}: colours, titles, banners, frames, flair, badges and name effects. Earn gold with /daily in Discord and equip with /equip."
@@ -222,7 +241,9 @@
 		with <code>/daily</code> and buy for real.
 	</p>
 	<div class="hero-cta">
-		<a class="btn" href={DISCORD_INVITE} target="_blank" rel="noopener noreferrer">💬 Join Discord to earn</a>
+		<a class="btn" href={DISCORD_INVITE} target="_blank" rel="noopener noreferrer"
+			>💬 Join Discord to earn</a
+		>
 		<a class="btn secondary" href="/leaderboard{gParam}">🏆 See styles on leaderboard</a>
 	</div>
 </section>
@@ -252,7 +273,8 @@
 					role="tab"
 					aria-selected={activeSlot === 'all'}
 					onclick={() => (activeSlot = 'all')}
-				>All <span class="tab-count">{totalCount}</span></button>
+					>All <span class="tab-count">{totalCount}</span></button
+				>
 				{#each SLOTS as slot (slot)}
 					{@const count = COSMETICS.filter((c) => c.slot === slot).length}
 					<button
@@ -262,15 +284,25 @@
 						aria-selected={activeSlot === slot}
 						onclick={() => (activeSlot = slot)}
 					>
-						{SLOT_EMOJI[slot]} {SLOT_LABEL[slot]} <span class="tab-count">{count}</span>
+						{SLOT_EMOJI[slot]}
+						{SLOT_LABEL[slot]} <span class="tab-count">{count}</span>
 					</button>
 				{/each}
 			</div>
 			{#if hasFilter || hasAnyPreview}
 				<div class="controls-foot">
-					<span class="faint">{filteredCount} {filteredCount === 1 ? 'item' : 'items'}{hasFilter ? ' — filtered' : ''}</span>
+					<span class="faint"
+						>{filteredCount}
+						{filteredCount === 1 ? 'item' : 'items'}{hasFilter ? ' — filtered' : ''}</span
+					>
 					{#if hasFilter}
-						<button class="btn ghost small" onclick={() => { search=''; activeSlot='all'; }}>Clear filters</button>
+						<button
+							class="btn ghost small"
+							onclick={() => {
+								search = '';
+								activeSlot = 'all';
+							}}>Clear filters</button
+						>
 					{/if}
 					{#if hasAnyPreview}
 						<button class="btn secondary small" onclick={clearAll}>↺ Clear preview</button>
@@ -284,13 +316,22 @@
 			<div class="empty" use:animateIn>
 				<span class="big">🔍</span>
 				<span>No matches.</span>
-				<button class="btn secondary small" onclick={() => { search=''; activeSlot='all'; }}>Show all {totalCount}</button>
+				<button
+					class="btn secondary small"
+					onclick={() => {
+						search = '';
+						activeSlot = 'all';
+					}}>Show all {totalCount}</button
+				>
 			</div>
 		{:else}
 			{#each sections as section, idx (section.slot)}
 				<section class="slot-section" use:animateIn={{ delay: 60 + idx * 18 }}>
 					<div class="slot-head">
-						<h2>{SLOT_EMOJI[section.slot]} {SLOT_LABEL[section.slot]} <span class="faint">· {section.items.length}</span></h2>
+						<h2>
+							{SLOT_EMOJI[section.slot]}
+							{SLOT_LABEL[section.slot]} <span class="faint">· {section.items.length}</span>
+						</h2>
 					</div>
 					<div class="shop-grid">
 						{#each section.items as item (item.id)}
@@ -306,11 +347,21 @@
 								aria-pressed={selected}
 								title={item.description}
 								onclick={() => togglePreview(item)}
-								onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); togglePreview(item); } }}
+								onkeydown={(e) => {
+									if (e.key === 'Enter' || e.key === ' ') {
+										e.preventDefault();
+										togglePreview(item);
+									}
+								}}
 							>
 								<div class="card-top">
 									<span class="card-emoji">{item.emoji}</span>
-									<span class="rarity" style:background={`${r.color}18`} style:color={r.color} style:border-color={`${r.color}35`}>{r.label}</span>
+									<span
+										class="rarity"
+										style:background={`${r.color}18`}
+										style:color={r.color}
+										style:border-color={`${r.color}35`}>{r.label}</span
+									>
 									{#if selected}<span class="sel-badge" title="Previewing">✓</span>{/if}
 									<button
 										type="button"
@@ -326,13 +377,22 @@
 
 								<!-- per-slot visual -->
 								{#if item.slot === 'color' && item.palette}
-									<div class="swatch" style:background={`linear-gradient(135deg, ${item.palette[0]}, ${item.palette[1]})`} aria-hidden="true"></div>
+									<div
+										class="swatch"
+										style:background={`linear-gradient(135deg, ${item.palette[0]}, ${item.palette[1]})`}
+										aria-hidden="true"
+									></div>
 								{:else if item.slot === 'banner' && item.palette}
-									<div class="banner-mini {item.cssClass ?? ''}" style:background={`linear-gradient(135deg, ${item.palette[0]}, ${item.palette[1]})`}></div>
+									<div
+										class="banner-mini {item.cssClass ?? ''}"
+										style:background={`linear-gradient(135deg, ${item.palette[0]}, ${item.palette[1]})`}
+									></div>
 								{:else if item.slot === 'frame' && item.cssClass}
-									<div class="frame-mini {item.cssClass}"><span class="frame-mini-label">Frame preview</span></div>
+									<div class="frame-mini {item.cssClass}">
+										<span class="frame-mini-label">Frame preview</span>
+									</div>
 								{:else if item.slot === 'effect' && item.cssClass}
-									<div class="effect-mini"><span class="{item.cssClass}">Aa</span></div>
+									<div class="effect-mini"><span class={item.cssClass}>Aa</span></div>
 								{:else if item.slot === 'flair' || item.slot === 'badge' || item.slot === 'title'}
 									<div class="emoji-big">{item.emoji}</div>
 								{/if}
@@ -350,11 +410,13 @@
 		<div class="card cta-bottom" use:animateIn>
 			<h2>See it in Discord</h2>
 			<p class="muted">
-				Earn gold with <code>/daily</code>, buy in <code>/shop</code>, equip with <code>/equip</code> —
-				your style shows up on the leaderboard and your profile card.
+				Earn gold with <code>/daily</code>, buy in <code>/shop</code>, equip with
+				<code>/equip</code> — your style shows up on the leaderboard and your profile card.
 			</p>
 			<div class="cluster">
-				<a class="btn" href={DISCORD_INVITE} target="_blank" rel="noopener noreferrer">💬 Join Discord</a>
+				<a class="btn" href={DISCORD_INVITE} target="_blank" rel="noopener noreferrer"
+					>💬 Join Discord</a
+				>
 				<a class="btn secondary" href="/leaderboard{gParam}">🏆 View leaderboard</a>
 			</div>
 		</div>
@@ -373,9 +435,14 @@
 			{#if hasAnyPreview}
 				<div class="preview-chips">
 					{#each Object.entries(preview) as [slot, id] (slot)}
-						{@const it = COSMETICS.find(c=>c.id===id)}
+						{@const it = COSMETICS.find((c) => c.id === id)}
 						{#if it}
-							<button class="chip preview-chip" type="button" onclick={() => clearSlot(slot)} title="Remove {it.name}">
+							<button
+								class="chip preview-chip"
+								type="button"
+								onclick={() => clearSlot(slot)}
+								title="Remove {it.name}"
+							>
 								<span>{it.emoji} {it.name}</span>
 								<span aria-hidden="true">✕</span>
 							</button>
@@ -388,10 +455,15 @@
 			<div class="card preview-card {previewCos.frame ?? ''}" style:overflow="hidden">
 				<div
 					class="banner {previewCos.banner?.cssClass ?? 'banner-default'}"
-					style:background={previewCos.banner?.palette ? `linear-gradient(135deg, ${previewCos.banner.palette[0]}, ${previewCos.banner.palette[1]})` : undefined}
+					style:background={previewCos.banner?.palette
+						? `linear-gradient(135deg, ${previewCos.banner.palette[0]}, ${previewCos.banner.palette[1]})`
+						: undefined}
 				>
 					{#if previewCos.color}
-						<div class="banner-wash" style:background={`linear-gradient(90deg, ${previewCos.color.from}55, ${previewCos.color.to}55)`}></div>
+						<div
+							class="banner-wash"
+							style:background={`linear-gradient(90deg, ${previewCos.color.from}55, ${previewCos.color.to}55)`}
+						></div>
 					{/if}
 					{#if previewCos.badge}
 						<div class="profile-badge">{previewCos.badge}</div>
@@ -399,7 +471,12 @@
 					<div class="banner-pattern"></div>
 				</div>
 				<div class="avatar-wrap">
-					<div class="avatar-ring {previewCos.frame ? '' : 'no-frame'}" style:box-shadow={previewCos.color ? `0 0 0 3px ${previewCos.color.from}, 0 8px 24px rgba(0,0,0,0.3)` : undefined}>
+					<div
+						class="avatar-ring {previewCos.frame ? '' : 'no-frame'}"
+						style:box-shadow={previewCos.color
+							? `0 0 0 3px ${previewCos.color.from}, 0 8px 24px rgba(0,0,0,0.3)`
+							: undefined}
+					>
 						<Avatar src="" name={previewName} seed="preview-user" size={88} />
 					</div>
 					{#if previewCos.flair}
@@ -409,16 +486,25 @@
 				<div class="preview-body">
 					<div class="p-name {previewCos.effect ?? ''}">{previewName}</div>
 					{#if previewCos.title}
-						<div class="title-pill"><span>{previewCos.titleEmoji ?? '🏷️'}</span> {previewCos.title}</div>
+						<div class="title-pill">
+							<span>{previewCos.titleEmoji ?? '🏷️'}</span>
+							{previewCos.title}
+						</div>
 					{/if}
 					<div class="pills">
 						<span class="rank-pill">#42</span>
-						<span class="lvl-chip" style:background={accentStyle ?? undefined} style:color={accentStyle ? '#fff' : undefined}>Level 12</span>
+						<span
+							class="lvl-chip"
+							style:background={accentStyle ?? undefined}
+							style:color={accentStyle ? '#fff' : undefined}>Level 12</span
+						>
 					</div>
 					<div class="progress big" style:height="10px">
 						<span style:width="64%" style:background={accentStyle ?? undefined}></span>
 					</div>
-					<div class="faint" style="font-size:0.78rem;margin-top:0.3rem">2 480 / 3 200 XP to Level 13</div>
+					<div class="faint" style="font-size:0.78rem;margin-top:0.3rem">
+						2 480 / 3 200 XP to Level 13
+					</div>
 					<div class="stats-row" style="margin-top:0.7rem">
 						<span class="stat-pill">🔥 7 days</span>
 						<span class="stat-pill">🎒 {Object.keys(preview).length} slots</span>
@@ -427,7 +513,8 @@
 			</div>
 
 			<p class="faint hint">
-				{#if hasAnyPreview}Tap a chip to remove it — one item per slot.{:else}Tap any cosmetic card to try it on — one item per slot.{/if}
+				{#if hasAnyPreview}Tap a chip to remove it — one item per slot.{:else}Tap any cosmetic card
+					to try it on — one item per slot.{/if}
 			</p>
 		</div>
 	</aside>
@@ -445,7 +532,10 @@
 		margin: 0;
 		font-size: clamp(1.5rem, 3vw, 1.8rem);
 	}
-	.shop-hero p { margin: 0; max-width: 62ch; }
+	.shop-hero p {
+		margin: 0;
+		max-width: 62ch;
+	}
 	.hero-cta {
 		display: flex;
 		gap: 0.6rem;
@@ -458,7 +548,11 @@
 		gap: 1.1rem;
 		align-items: start;
 	}
-	.shop-main { min-width: 0; display: grid; gap: 1.1rem; }
+	.shop-main {
+		min-width: 0;
+		display: grid;
+		gap: 1.1rem;
+	}
 
 	/* controls */
 	.controls {
@@ -480,7 +574,9 @@
 		border-radius: 10px;
 		padding: 0.35rem 0.6rem 0.35rem 0.7rem;
 	}
-	.search-icon { opacity: 0.6; }
+	.search-icon {
+		opacity: 0.6;
+	}
 	.search-wrap input {
 		border: none;
 		background: transparent;
@@ -489,7 +585,10 @@
 		flex: 1;
 		min-width: 0;
 	}
-	.search-wrap input:focus { box-shadow: none; transform: none; }
+	.search-wrap input:focus {
+		box-shadow: none;
+		transform: none;
+	}
 	.slot-tabs {
 		display: flex;
 		gap: 0.35rem;
@@ -507,9 +606,16 @@
 		font-weight: 600;
 		font-size: 0.84rem;
 		cursor: pointer;
-		transition: background var(--t), color var(--t), border-color var(--t), transform var(--t);
+		transition:
+			background var(--t),
+			color var(--t),
+			border-color var(--t),
+			transform var(--t);
 	}
-	.tab:hover { border-color: var(--border-strong); transform: translateY(-1px); }
+	.tab:hover {
+		border-color: var(--border-strong);
+		transform: translateY(-1px);
+	}
 	.tab.active {
 		background: var(--accent-grad);
 		color: #fff;
@@ -523,11 +629,13 @@
 		height: 20px;
 		padding: 0 5px;
 		border-radius: var(--pill);
-		background: rgba(255,255,255,0.18);
+		background: rgba(255, 255, 255, 0.18);
 		font-size: 0.72rem;
 		font-weight: 800;
 	}
-	.tab.active .tab-count { background: rgba(255,255,255,0.22); }
+	.tab.active .tab-count {
+		background: rgba(255, 255, 255, 0.22);
+	}
 	.controls-foot {
 		display: flex;
 		align-items: center;
@@ -537,7 +645,10 @@
 	}
 
 	/* catalog */
-	.slot-section { display: grid; gap: 0.7rem; }
+	.slot-section {
+		display: grid;
+		gap: 0.7rem;
+	}
 	.slot-head {
 		display: flex;
 		align-items: baseline;
@@ -545,7 +656,12 @@
 		flex-wrap: wrap;
 		padding: 0 0.15rem;
 	}
-	.slot-head h2 { margin: 0; display: flex; gap: 0.4rem; align-items: center; }
+	.slot-head h2 {
+		margin: 0;
+		display: flex;
+		gap: 0.4rem;
+		align-items: center;
+	}
 	.shop-grid {
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
@@ -557,7 +673,10 @@
 		display: grid;
 		gap: 0.5rem;
 		cursor: pointer;
-		transition: transform var(--t-spring), box-shadow var(--t), border-color var(--t);
+		transition:
+			transform var(--t-spring),
+			box-shadow var(--t),
+			border-color var(--t);
 		border: 1px solid var(--border);
 	}
 	.shop-card:hover {
@@ -567,7 +686,9 @@
 	}
 	.shop-card.selected {
 		border-color: var(--accent);
-		box-shadow: 0 0 0 2px rgba(0,165,148,0.18), var(--shadow);
+		box-shadow:
+			0 0 0 2px rgba(0, 165, 148, 0.18),
+			var(--shadow);
 		background: color-mix(in srgb, var(--accent-soft) 6%, var(--bg-elev));
 	}
 	.card-top {
@@ -576,7 +697,10 @@
 		gap: 0.45rem;
 		flex-wrap: wrap;
 	}
-	.card-emoji { font-size: 1.35rem; line-height: 1; }
+	.card-emoji {
+		font-size: 1.35rem;
+		line-height: 1;
+	}
 	.rarity {
 		display: inline-flex;
 		padding: 0.12rem 0.5rem;
@@ -607,14 +731,21 @@
 		color: var(--text-muted);
 		font-size: 0.78rem;
 		cursor: pointer;
-		transition: color var(--t), border-color var(--t), background var(--t);
+		transition:
+			color var(--t),
+			border-color var(--t),
+			background var(--t);
 	}
 	.share-btn:hover {
 		color: var(--text);
 		border-color: var(--border-strong);
 		background: var(--bg-inset);
 	}
-	.card-name { font-weight: 800; font-size: 0.98rem; letter-spacing: -0.01em; }
+	.card-name {
+		font-weight: 800;
+		font-size: 0.98rem;
+		letter-spacing: -0.01em;
+	}
 	.swatch {
 		height: 18px;
 		border-radius: var(--pill);
@@ -638,7 +769,13 @@
 		position: relative;
 		overflow: hidden;
 	}
-	.frame-mini-label { font-size: 0.72rem; font-weight: 700; color: var(--text-muted); position: relative; z-index: 1; }
+	.frame-mini-label {
+		font-size: 0.72rem;
+		font-weight: 700;
+		color: var(--text-muted);
+		position: relative;
+		z-index: 1;
+	}
 	.effect-mini {
 		height: 36px;
 		display: grid;
@@ -654,7 +791,11 @@
 		line-height: 1;
 		padding: 0.1rem 0.25rem;
 	}
-	.emoji-big { font-size: 1.9rem; text-align: center; padding: 0.15rem 0; }
+	.emoji-big {
+		font-size: 1.9rem;
+		text-align: center;
+		padding: 0.15rem 0;
+	}
 	.card-foot {
 		display: flex;
 		align-items: center;
@@ -664,7 +805,11 @@
 		padding-top: 0.55rem;
 		border-top: 1px solid var(--border);
 	}
-	.price { font-weight: 800; font-size: 0.9rem; letter-spacing: -0.01em; }
+	.price {
+		font-weight: 800;
+		font-size: 0.9rem;
+		letter-spacing: -0.01em;
+	}
 	.shop-card:focus-visible {
 		outline: none;
 		box-shadow: var(--ring);
@@ -677,9 +822,16 @@
 		gap: 0.6rem;
 		padding: 1.5rem;
 	}
-	.cta-bottom h2 { margin: 0; }
-	.cta-bottom p { margin: 0; max-width: 56ch; }
-	.cta-bottom .cluster { justify-content: center; }
+	.cta-bottom h2 {
+		margin: 0;
+	}
+	.cta-bottom p {
+		margin: 0;
+		max-width: 56ch;
+	}
+	.cta-bottom .cluster {
+		justify-content: center;
+	}
 
 	/* preview */
 	.preview-col {
@@ -712,8 +864,15 @@
 		font-weight: 600;
 		cursor: pointer;
 	}
-	.preview-chip:hover { border-color: #f87171; color: #f87171; }
-	.hint { font-size: 0.82rem; margin: 0; text-align: center; }
+	.preview-chip:hover {
+		border-color: #f87171;
+		color: #f87171;
+	}
+	.hint {
+		font-size: 0.82rem;
+		margin: 0;
+		text-align: center;
+	}
 	.preview-card {
 		width: 100%;
 		padding: 0;
@@ -726,16 +885,24 @@
 		background: var(--accent-grad);
 		overflow: hidden;
 	}
-	.banner-default { background: var(--accent-grad) !important; }
-	.banner-wash { position: absolute; inset: 0; mix-blend-mode: soft-light; opacity: 0.9; pointer-events: none; }
+	.banner-default {
+		background: var(--accent-grad) !important;
+	}
+	.banner-wash {
+		position: absolute;
+		inset: 0;
+		mix-blend-mode: soft-light;
+		opacity: 0.9;
+		pointer-events: none;
+	}
 	.banner-pattern {
 		position: absolute;
 		inset: 0;
 		background-image:
-			radial-gradient(1px 1px at 12% 28%, rgba(255,255,255,0.55) 1px, transparent 1px),
-			radial-gradient(1px 1px at 68% 42%, rgba(255,255,255,0.45) 1px, transparent 1px),
-			radial-gradient(1.2px 1.2px at 38% 72%, rgba(255,255,255,0.4) 1px, transparent 1px),
-			radial-gradient(1px 1px at 82% 68%, rgba(255,255,255,0.35) 1px, transparent 1px);
+			radial-gradient(1px 1px at 12% 28%, rgba(255, 255, 255, 0.55) 1px, transparent 1px),
+			radial-gradient(1px 1px at 68% 42%, rgba(255, 255, 255, 0.45) 1px, transparent 1px),
+			radial-gradient(1.2px 1.2px at 38% 72%, rgba(255, 255, 255, 0.4) 1px, transparent 1px),
+			radial-gradient(1px 1px at 82% 68%, rgba(255, 255, 255, 0.35) 1px, transparent 1px);
 		background-size: 140px 80px;
 		opacity: 0.5;
 		pointer-events: none;
@@ -751,10 +918,16 @@
 		border-radius: 50%;
 		padding: 4px;
 		background: var(--bg-elev);
-		box-shadow: 0 8px 32px rgba(0,0,0,0.22), 0 0 0 3px var(--bg-elev);
+		box-shadow:
+			0 8px 32px rgba(0, 0, 0, 0.22),
+			0 0 0 3px var(--bg-elev);
 		position: relative;
 	}
-	.avatar-ring.no-frame { box-shadow: 0 8px 32px rgba(0,0,0,0.2), 0 0 0 4px var(--bg-elev); }
+	.avatar-ring.no-frame {
+		box-shadow:
+			0 8px 32px rgba(0, 0, 0, 0.2),
+			0 0 0 4px var(--bg-elev);
+	}
 	.flair-bubble {
 		position: absolute;
 		bottom: 2px;
@@ -821,7 +994,9 @@
 		font-size: 0.76rem;
 		border: 1px solid transparent;
 	}
-	.progress.big { width: 100%; }
+	.progress.big {
+		width: 100%;
+	}
 	.stats-row {
 		display: flex;
 		flex-wrap: wrap;
@@ -840,17 +1015,34 @@
 
 	/* responsive */
 	@media (max-width: 880px) {
-		.shop-layout { grid-template-columns: 1fr; }
-		.preview-sticky { position: static; }
-		.controls { position: static; }
-		.shop-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+		.shop-layout {
+			grid-template-columns: 1fr;
+		}
+		.preview-sticky {
+			position: static;
+		}
+		.controls {
+			position: static;
+		}
+		.shop-grid {
+			grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+		}
 	}
 	@media (max-width: 480px) {
-		.shop-grid { grid-template-columns: 1fr 1fr; gap: 0.6rem; }
-		.shop-card { padding: 0.8rem; }
-		.card-name { font-size: 0.9rem; }
+		.shop-grid {
+			grid-template-columns: 1fr 1fr;
+			gap: 0.6rem;
+		}
+		.shop-card {
+			padding: 0.8rem;
+		}
+		.card-name {
+			font-size: 0.9rem;
+		}
 	}
 	@media (prefers-reduced-motion: reduce) {
-		.shop-card { transition: none; }
+		.shop-card {
+			transition: none;
+		}
 	}
 </style>

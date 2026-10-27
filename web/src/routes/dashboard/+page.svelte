@@ -1,10 +1,10 @@
 <script lang="ts">
-	import Banner from '$lib/components/Banner.svelte';
-	import StatCard from '$lib/components/StatCard.svelte';
-	import Avatar from '$lib/components/Avatar.svelte';
-	import CopyId from '$lib/components/CopyId.svelte';
-	import { formatNumber, levelProgress } from '$lib/leveling';
-	import { animateIn } from '$lib/actions/animate';
+	import Banner from '#lib/components/Banner.svelte';
+	import StatCard from '#lib/components/StatCard.svelte';
+	import Avatar from '#lib/components/Avatar.svelte';
+	import CopyId from '#lib/components/CopyId.svelte';
+	import { formatNumber, levelProgress } from '#lib/leveling.js';
+	import { animateIn } from '#lib/actions/animate.js';
 
 	let { data } = $props();
 
@@ -33,12 +33,19 @@
 	<Banner kind="error">Could not reach PocketBase. Check the bot's database service.</Banner>
 {/if}
 {#if guild && !guild.botConfigured}
-	<Banner kind="warn">The bot bridge isn't configured (<code>INTERNAL_API_SECRET</code>). The dashboard works but shows raw IDs and can't post to Discord.</Banner>
+	<Banner kind="warn"
+		>The bot bridge isn't configured (<code>INTERNAL_API_SECRET</code>). The dashboard works but
+		shows raw IDs and can't post to Discord.</Banner
+	>
 {:else if guild && !guild.botOnline}
-	<Banner kind="warn">Bot is offline — showing raw IDs. Discord names and actions return when the bot is running.</Banner>
+	<Banner kind="warn"
+		>Bot is offline — showing raw IDs. Discord names and actions return when the bot is running.</Banner
+	>
 {/if}
 {#if !data.gid && guild?.botOnline && guild.guilds.length === 0}
-	<Banner kind="info">The bot isn't in any servers yet. Invite it to a server to get started.</Banner>
+	<Banner kind="info"
+		>The bot isn't in any servers yet. Invite it to a server to get started.</Banner
+	>
 {/if}
 
 {#if cur}
@@ -55,14 +62,14 @@
 {/if}
 
 <div class="grid section">
-	{#each [
-		{ label: 'Reaction roles', value: data.counts.reactionRoles, icon: '🏷️', tone: 'accent' },
-		{ label: 'Level rewards',  value: data.counts.levelRewards,  icon: '🎁', tone: 'gold'   },
-		{ label: 'Tracked users',  value: data.counts.userLevels,    icon: '👥', tone: 'blue'   },
-		...(cur ? [{ label: 'Server members', value: formatNumber(cur.memberCount), icon: '🐉', tone: 'green' }] : [])
-	] as c, i (c.label)}
+	{#each [{ label: 'Reaction roles', value: data.counts.reactionRoles, icon: '🏷️', tone: 'accent' }, { label: 'Level rewards', value: data.counts.levelRewards, icon: '🎁', tone: 'gold' }, { label: 'Tracked users', value: data.counts.userLevels, icon: '👥', tone: 'blue' }, ...(cur ? [{ label: 'Server members', value: formatNumber(cur.memberCount), icon: '🐉', tone: 'green' }] : [])] as c, i (c.label)}
 		<div use:animateIn={{ delay: i * 70 }}>
-			<StatCard label={c.label} value={c.value} icon={c.icon} tone={c.tone as 'accent' | 'green' | 'blue' | 'gold'} />
+			<StatCard
+				label={c.label}
+				value={c.value}
+				icon={c.icon}
+				tone={c.tone as 'accent' | 'green' | 'blue' | 'gold'}
+			/>
 		</div>
 	{/each}
 </div>
@@ -81,9 +88,16 @@
 				{@const p = levelProgress(u.xp)}
 				<div class="board-row" use:animateIn={{ delay: 60 + i * 55 }}>
 					<div class="rank" class:top={i < 3}>{medals[i] ?? i + 1}</div>
-					<Avatar src={m?.avatar ?? ''} name={m?.displayName ?? u.user_id} seed={u.user_id} size={40} />
+					<Avatar
+						src={m?.avatar ?? ''}
+						name={m?.displayName ?? u.user_id}
+						seed={u.user_id}
+						size={40}
+					/>
 					<div class="who">
-						<div class="name">{m?.displayName ?? ''}{#if !m}<CopyId value={u.user_id} short />{/if}</div>
+						<div class="name">
+							{m?.displayName ?? ''}{#if !m}<CopyId value={u.user_id} short />{/if}
+						</div>
 						<div class="bar">
 							<div class="progress"><span style="width:{p.pct}%"></span></div>
 							<span class="xp faint">{formatNumber(u.xp)} XP</span>

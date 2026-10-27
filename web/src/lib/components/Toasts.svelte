@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { fly, scale } from 'svelte/transition';
-	import { toasts, dismissToast } from '$lib/toast.svelte';
+	import { toasts, dismissToast } from '#lib/toast.svelte.js';
 
 	const glyph = { success: '✓', error: '⛔', info: 'ℹ' } as const;
 </script>

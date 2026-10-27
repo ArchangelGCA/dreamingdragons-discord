@@ -1,5 +1,5 @@
-# dd-bot Discord bot image — Bun 1.4.2 (multi-arch: linux/amd64 + linux/arm64)
-FROM oven/bun:1.4.2-alpine
+# dd-bot Discord bot image — Bun 1.4.4 (multi-arch: linux/amd64 + linux/arm64)
+FROM oven/bun:1.4.4-alpine
 
 ENV NODE_ENV=production
 ENV BUN_ENV=production
@@ -12,7 +12,10 @@ USER bun
 # Bun 1.4 uses a plain-text bun.lock (committed). The wildcard covers both the new
 # text lockfile (bun.lock) and any legacy binary lockfile (bun.lockb) during migration.
 COPY --chown=bun:bun package.json bun.lock* ./
-RUN bun install --frozen-lockfile --production && bun pm cache rm || true
+# Bun 1.4.4: `bun pm fetch` downloads the whole dependency tree into the cache in
+# its own layer, so editing source files never re-downloads anything.
+RUN bun pm fetch
+RUN bun install --offline --frozen-lockfile --production && bun pm cache rm || true
 
 # Copy bot source (+ shared catalog — single source for cosmetics).
 COPY --chown=bun:bun index.js deploy-commands.js ./

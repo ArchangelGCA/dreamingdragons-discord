@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { theme, setTheme, type Theme } from '$lib/theme.svelte';
+	import { theme, setTheme, type Theme } from '#lib/theme.svelte.js';
 
 	const options: { value: Theme; label: string; icon: string }[] = [
 		{ value: 'system', label: 'System', icon: '🖥️' },
@@ -43,7 +43,10 @@
 		font-size: 0.95rem;
 		filter: grayscale(0.5);
 		opacity: 0.7;
-		transition: background var(--t), opacity var(--t), filter var(--t);
+		transition:
+			background var(--t),
+			opacity var(--t),
+			filter var(--t);
 	}
 	.theme-toggle button:hover {
 		opacity: 1;

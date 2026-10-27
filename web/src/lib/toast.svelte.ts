@@ -1,5 +1,5 @@
 /** Lightweight toast notifications, driven mostly by form action results. */
-import { browser } from '$app/environment';
+import { browser } from '$app/env';
 
 export type ToastKind = 'success' | 'error' | 'info';
 export interface Toast {

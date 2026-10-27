@@ -1,8 +1,8 @@
 <script lang="ts">
-	import Avatar from '$lib/components/Avatar.svelte';
-	import { anonymize } from '$lib/format';
-	import { formatNumber } from '$lib/leveling';
-	import { animateIn } from '$lib/actions/animate';
+	import Avatar from '#lib/components/Avatar.svelte';
+	import { anonymize } from '#lib/format.js';
+	import { formatNumber } from '#lib/leveling.js';
+	import { animateIn } from '#lib/actions/animate.js';
 
 	let { data } = $props();
 
@@ -23,7 +23,10 @@
 <svelte:head>
 	<title>{siteName} — Community stats</title>
 	<meta property="og:title" content="{siteName} — Community" />
-	<meta property="og:description" content="Live leaderboard and member stats for {siteName} — earn gold with /daily, unlock 30+ cosmetics, and style your profile card." />
+	<meta
+		property="og:description"
+		content="Live leaderboard and member stats for {siteName} — earn gold with /daily, unlock 30+ cosmetics, and style your profile card."
+	/>
 	{#if guild?.icon}<meta property="og:image" content={guild.icon} />{/if}
 </svelte:head>
 
@@ -36,13 +39,15 @@
 	<div class="hero-text">
 		<h1>{guild?.name ?? 'Welcome!'}</h1>
 		<p class="muted">
-			Public stats for <strong>{siteName}</strong>'s Discord — members earn XP by chatting and
-			style their profile cards with cosmetics.
+			Public stats for <strong>{siteName}</strong>'s Discord — members earn XP by chatting and style
+			their profile cards with cosmetics.
 		</p>
 		<div class="hero-cta">
 			<a class="btn" href="/leaderboard{gParam}">🏆 View the leaderboard</a>
 			<a class="btn secondary" href={shopHref}>🛍️ Browse shop</a>
-			<a class="btn discord" href={DISCORD_INVITE} target="_blank" rel="noopener noreferrer">💬 Join Discord</a>
+			<a class="btn discord" href={DISCORD_INVITE} target="_blank" rel="noopener noreferrer"
+				>💬 Join Discord</a
+			>
 		</div>
 	</div>
 </section>
@@ -99,25 +104,37 @@
 						{#if (u as any).cosmetics?.title}
 							<span class="podium-title">{(u as any).cosmetics.title}</span>
 						{/if}
-						<span class="lvl-chip" style:background={color ? `linear-gradient(135deg, ${color.from}22, ${color.to}22)` : undefined} style:color={color ? color.from : undefined}>Lv {u.level}</span>
+						<span
+							class="lvl-chip"
+							style:background={color
+								? `linear-gradient(135deg, ${color.from}22, ${color.to}22)`
+								: undefined}
+							style:color={color ? color.from : undefined}>Lv {u.level}</span
+						>
 						<span class="faint">{formatNumber(u.xp)} XP</span>
 					</a>
 				{/each}
 			</div>
 			<p class="faint under-podium">
-				Run <code>/level</code> in Discord to see your own card · <a href="/privacy{gParam}">What do we store?</a>
+				Run <code>/level</code> in Discord to see your own card ·
+				<a href="/privacy{gParam}">What do we store?</a>
 			</p>
 		</section>
 
 		<section class="card cosmetics-teaser" use:animateIn={{ delay: 120 }}>
 			<h2>🎨 Style your card</h2>
 			<p class="muted">
-				Earn gold with <code>/daily</code>, spend it in the <a href={shopHref}>shop</a> — colours,
-				titles, banners, frames, flair, badges and name effects, shown live on the leaderboard.
+				Earn gold with <code>/daily</code>, spend it in the <a href={shopHref}>shop</a> — colours, titles,
+				banners, frames, flair, badges and name effects, shown live on the leaderboard.
 			</p>
 			<div class="teaser-actions">
 				<a class="btn small" href={shopHref}>🛍️ Preview all cosmetics</a>
-				<a class="btn secondary small" href={DISCORD_INVITE} target="_blank" rel="noopener noreferrer">💬 Join Discord to claim</a>
+				<a
+					class="btn secondary small"
+					href={DISCORD_INVITE}
+					target="_blank"
+					rel="noopener noreferrer">💬 Join Discord to claim</a
+				>
 			</div>
 		</section>
 	{/if}
@@ -242,8 +259,13 @@
 	.cosmetics-teaser {
 		margin-top: 1.4rem;
 	}
-	.cosmetics-teaser h2 { margin-bottom: 0.5rem; }
-	.cosmetics-teaser p { font-size: 0.92rem; margin: 0; }
+	.cosmetics-teaser h2 {
+		margin-bottom: 0.5rem;
+	}
+	.cosmetics-teaser p {
+		font-size: 0.92rem;
+		margin: 0;
+	}
 	.teaser-actions {
 		display: flex;
 		gap: 0.5rem;
@@ -259,7 +281,7 @@
 		background: #4752c4;
 		border-color: #4752c4;
 		color: #fff;
-		box-shadow: 0 6px 18px -6px rgba(88,101,242,0.5);
+		box-shadow: 0 6px 18px -6px rgba(88, 101, 242, 0.5);
 		filter: none;
 	}
 

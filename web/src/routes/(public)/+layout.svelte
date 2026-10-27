@@ -2,9 +2,9 @@
 	import { page } from '$app/state';
 	import { onNavigate } from '$app/navigation';
 	import { onMount } from 'svelte';
-	import favicon from '$lib/assets/favicon.svg';
-	import Avatar from '$lib/components/Avatar.svelte';
-	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+	import favicon from '#lib/assets/favicon.svg';
+	import Avatar from '#lib/components/Avatar.svelte';
+	import ThemeToggle from '#lib/components/ThemeToggle.svelte';
 
 	let { data, children } = $props();
 
@@ -134,6 +134,8 @@
 	// Falls back to the CSS pageEnter animation via the keyed #key block below.
 	if (typeof document !== 'undefined' && 'startViewTransition' in document) {
 		onNavigate((navigation) => {
+			if (navigation.shallow && navigation.type === 'goto') return;
+
 			// don't intercept same-page hash / search-only changes that stay in place
 			const from = navigation.from?.url.pathname;
 			const to = navigation.to?.url.pathname;
@@ -153,22 +155,26 @@
 
 <svelte:head>
 	<link rel="icon" href={favicon} />
-	<meta name="description" content="{siteName} — community leaderboard and stats, powered by the dd-bot DreamingDragons's leveling system." />
+	<meta
+		name="description"
+		content="{siteName} — community leaderboard and stats, powered by the dd-bot DreamingDragons's leveling system."
+	/>
 </svelte:head>
 
 <!-- invisible top sensor — catches pointer when nav is hidden so mousemove still fires reliably -->
 <div class="pub-sensor" aria-hidden="true"></div>
 
 <div class="pub">
-	<header
-		bind:this={navEl}
-		class="pub-nav"
-		class:hidden={navHidden}
-		class:scrolled={navScrolled}
-	>
+	<header bind:this={navEl} class="pub-nav" class:hidden={navHidden} class:scrolled={navScrolled}>
 		<a class="pub-brand" href={hrefFor('/')}>
 			{#if pub?.guild?.icon}
-				<Avatar src={pub.guild.icon} name={siteName} seed={pub.guild.id} size={30} rounded="square" />
+				<Avatar
+					src={pub.guild.icon}
+					name={siteName}
+					seed={pub.guild.id}
+					size={30}
+					rounded="square"
+				/>
 			{:else}
 				<span class="pub-mark">🐉</span>
 			{/if}
@@ -178,7 +184,9 @@
 		<nav class="pub-links" aria-label="Primary">
 			{#each links as l (l.path)}
 				{@const active = page.url.pathname === l.path}
-				<a href={hrefFor(l.path)} class:active aria-current={active ? 'page' : undefined}>{l.label}</a>
+				<a href={hrefFor(l.path)} class:active aria-current={active ? 'page' : undefined}
+					>{l.label}</a
+				>
 			{/each}
 		</nav>
 
@@ -219,7 +227,9 @@
 				<a href={hrefFor('/leaderboard')}>Leaderboard</a>
 				<a href={hrefFor('/shop')}>Shop</a>
 				<a href={hrefFor('/privacy')}>Privacy</a>
-				<a href={DISCORD_INVITE} target="_blank" rel="noopener noreferrer" class="discord-link">Join Discord ↗</a>
+				<a href={DISCORD_INVITE} target="_blank" rel="noopener noreferrer" class="discord-link"
+					>Join Discord ↗</a
+				>
 			</div>
 		</div>
 		<div class="footer-bottom">
@@ -227,7 +237,12 @@
 				Stats come from public server activity · Not affiliated with Discord Inc. ·
 				<a href={hrefFor('/privacy')}>Privacy</a>
 			</span>
-			<a class="btn small discord-cta" href={DISCORD_INVITE} target="_blank" rel="noopener noreferrer">
+			<a
+				class="btn small discord-cta"
+				href={DISCORD_INVITE}
+				target="_blank"
+				rel="noopener noreferrer"
+			>
 				<span class="discord-dot" aria-hidden="true"></span>
 				Join {siteName} on Discord
 			</a>

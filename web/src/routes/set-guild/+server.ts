@@ -1,5 +1,5 @@
 import { redirect } from '@sveltejs/kit';
-import { setGuildCookie } from '$lib/server/guild';
+import { setGuildCookie } from '#lib/server/guild.js';
 import type { RequestHandler } from './$types';
 
 /** Only allow redirecting back to a local path (no open redirects). */

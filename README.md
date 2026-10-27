@@ -1,9 +1,9 @@
 # 🐉 DreamingDragons Discord Bot (dd-bot)
 
 ![discord.js](https://img.shields.io/badge/discord.js-v14.27-5865F2.svg)
-![Bun](https://img.shields.io/badge/bun-%3E%3D1.4.2-f472b6.svg)
+![Bun](https://img.shields.io/badge/bun-%3E%3D1.4.4-f472b6.svg)
 ![PocketBase](https://img.shields.io/badge/PocketBase-v0.39-B8DBE4.svg)
-![SvelteKit](https://img.shields.io/badge/SvelteKit-Svelte%205-FF3E00.svg)
+![SvelteKit](https://img.shields.io/badge/SvelteKit-3%20%2B%20Svelte%205-FF3E00.svg)
 ![License](https://img.shields.io/badge/license-MIT-success.svg)
 
 A feature-rich Discord bot for communities — **reaction roles** (modern buttons *or* classic emoji reactions), a **leveling / XP** system, and a **daily rewards / gold economy** with cosmetically customisable public profile cards — bundled as a single, self-provisioning Docker deployment together with its database and a private admin dashboard.
@@ -16,7 +16,7 @@ A feature-rich Discord bot for communities — **reaction roles** (modern button
 |---------|-------------|-------|
 | **bot** | The Discord bot (discord.js v14) | built from `Dockerfile` |
 | **pocketbase** | Database + auto-created schema & superuser | built from `pocketbase/Dockerfile` |
-| **web** | Private admin dashboard (SvelteKit + Svelte 5) | built from `web/Dockerfile` |
+| **web** | Private admin dashboard (SvelteKit 3 + Svelte 5) | built from `web/Dockerfile` |
 | **cloudflared** | *Optional* Cloudflare Tunnel for local hosting | `cloudflare/cloudflared` |
 
 Everything is **multi-arch** — it runs on `linux/amd64` and `linux/arm64` (e.g. an ARM VPS or a Raspberry Pi). No manual database setup: collections and the admin account are created automatically on first start.
@@ -128,8 +128,9 @@ All configuration is via `.env` (see `.env.example` for the annotated template):
 | `DISCORD_GUILD_ID` | — | Single guild for **instant** command updates. Empty = **global** deploy (~1h to propagate). |
 | `POCKETBASE_ADMIN_EMAIL` | ✅ | Superuser email (auto-created). |
 | `POCKETBASE_ADMIN_PASSWORD` | ✅ | Superuser password (**min 8 chars**, auto-created). |
-| `ORIGIN` | ✅ | Public URL the dashboard is opened from (e.g. `http://localhost:3000`). Must match or form actions fail. |
+| `ORIGIN` | ✅ | Public URL the dashboard is opened from (e.g. `http://localhost:3000`). Must match or form actions fail. **Baked into the web build** — after changing it run `docker compose up -d --build web`. |
 | `PUBLIC_URL` | — | Public site base URL (usually same public origin as `ORIGIN`). Enables the "View stats online" link button on `/level`. |
+| `BODY_SIZE_LIMIT` | — | Max request body for the dashboard (default `20M`). PocketBase admin uploads go through the `/pb/*` proxy. |
 | `INTERNAL_API_SECRET` | ▲ | Shared secret for the dashboard↔bot bridge (Discord names + live actions). **Blank = bridge disabled**, dashboard degrades to DB-only/raw-IDs. Bot & web must share the same value; use `openssl rand -hex 32`. Internal network only — never exposed to a host port. |
 | `BOT_API_PORT` | — | Port for the bot's internal API on the Docker network (default `8787`; no host mapping). |
 | `POCKETBASE_PORT` | — | Host port for PocketBase (default `8090`). |
@@ -171,8 +172,12 @@ Create a tunnel in the Cloudflare Zero Trust dashboard, point a hostname at
 URL, then:
 
 ```bash
-docker compose --profile tunnel up -d
+docker compose --profile tunnel up -d --build
 ```
+
+> `ORIGIN` is compiled into the dashboard bundle (SvelteKit 3 `paths.origin`), so
+> changing it — e.g. switching from `http://localhost:3000` to your tunnel URL —
+> requires rebuilding the `web` image (`docker compose up -d --build web`).
 
 ## 🔄 Automatic updates (continuous deployment)
 
@@ -219,6 +224,13 @@ That's it. From now on, every push to `AUTO_UPDATE_BRANCH` is live within
 and run `docker compose up -d updater` again (that one *is* scoped to the updater
 on purpose — it stays up but idles; the rest of the stack keeps running).
 
+> **`ORIGIN` and the updater:** the updater rebuilds from the repo checkout on the
+> server, so `docker compose` reads the server's `.env` (untracked, therefore
+> preserved by `git reset --hard`). Since `ORIGIN` is baked into the dashboard at
+> build time, **every update re-bakes it from that `.env`** — no extra flags needed.
+> If you change `ORIGIN` *without* pushing a commit, trigger one rebuild by hand:
+> `docker compose up -d --build web`.
+
 > **Using the Cloudflare Tunnel too?** Add `COMPOSE_PROFILES=tunnel` to `.env` so
 > the updater keeps managing `cloudflared` alongside the rest of the stack.
 
@@ -247,11 +259,13 @@ Images build natively for your host arch. To build for an ARM VPS from an x86 ma
 ```bash
 docker buildx build --platform linux/arm64 -f pocketbase/Dockerfile -t <you>/ddbot-pocketbase .
 docker buildx build --platform linux/arm64 -f Dockerfile           -t <you>/ddbot-bot .
-docker buildx build --platform linux/arm64 -f web/Dockerfile       -t <you>/ddbot-web .
+docker buildx build --platform linux/arm64 -f web/Dockerfile \
+  --build-arg ORIGIN=https://admin.yourdomain.com -t <you>/ddbot-web .
 ```
 
 The PocketBase image downloads the correct binary via `TARGETARCH`; Bun images have
-official `arm64` variants. All three are verified to build for `linux/amd64` and `linux/arm64`.
+official `arm64` variants (Bun 1.4.4 also resolves musl dependencies for Alpine).
+All three are verified to build for `linux/amd64` and `linux/arm64`.
 
 ## 📋 Commands
 
@@ -279,7 +293,7 @@ official `arm64` variants. All three are verified to build for `linux/amd64` and
 
 ## 💻 Local development (without Docker)
 
-Requires [Bun](https://bun.sh/) ≥ 1.4.2 and a PocketBase instance (run one with the bundled image or the
+Requires [Bun](https://bun.sh/) ≥ 1.4.4 and a PocketBase instance (run one with the bundled image or the
 [binary](https://pocketbase.io/docs/)).
 
 ```bash
@@ -290,7 +304,7 @@ cp .env.example .env          # set POCKETBASE_URL to your PB instance,
 bun run deploy                # register slash commands
 bun run dev                   # start with auto-reload (--watch); the internal API
                               # listens on 127.0.0.1:${BOT_API_PORT:-8787}
-bun test                      # run the unit tests (fully offline): leveling math,
+bun run test                  # run the unit tests (fully offline): leveling math,
                               # economy math/streak/reward, recovery planner, CV2 UI builders,
                               # command contracts
 
@@ -301,6 +315,9 @@ POCKETBASE_URL=http://127.0.0.1:8090 ORIGIN=http://localhost:5173 \
   INTERNAL_API_SECRET=<same-as-bot> BOT_API_URL=http://127.0.0.1:8787 \
   POCKETBASE_ADMIN_EMAIL=<superuser-email> POCKETBASE_ADMIN_PASSWORD=<superuser-password> \
   bun run dev
+
+bun run check                 # svelte-check (types) — 0 errors expected
+bun run format                # `bun fmt` (Bun's built-in Prettier-compatible formatter)
 ```
 
 > The `POCKETBASE_ADMIN_*` vars power the **public pages** (leaderboard/profile). Without them the
@@ -322,10 +339,10 @@ dd-bot/
 ├─ utils/                 # pocketbase, leveling, economy (daily/cosmetics), reminders,
 │                         # reactionroles, ui (Components V2 kit), levelui, economyui
 ├─ init/                  # boot-time reaction-role message caching
-├─ test/                  # node --test unit tests (leveling, UI builders, command contracts)
+├─ test/                  # bun test unit tests (leveling, UI builders, command contracts)
 ├─ pb_migrations/         # PocketBase schema (auto-applied)
 ├─ pocketbase/            # PocketBase Dockerfile + entrypoint
-├─ web/                   # SvelteKit 5 admin dashboard + public site (leaderboard, profiles, privacy)
+├─ web/                   # SvelteKit 3 admin dashboard + public site (leaderboard, profiles, privacy)
 ├─ deploy/updater/        # auto-update sidecar (continuous deployment)
 ├─ Dockerfile             # bot image
 └─ docker-compose.yml     # full stack
@@ -335,7 +352,7 @@ dd-bot/
 
 - [discord.js](https://discord.js.org/) — Discord API library
 - [PocketBase](https://pocketbase.io/) — database & auth
-- [SvelteKit](https://svelte.dev/) (Svelte 5) — admin dashboard & public site
+- [SvelteKit](https://svelte.dev/) 3 (Svelte 5) — admin dashboard & public site, served by `@sveltejs/adapter-bun`
 - [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) — optional public access
 
 ## 📜 Changelog

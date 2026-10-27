@@ -1,4 +1,4 @@
-# Bun 1.4 configuration for SvelteKit dashboard
+# Bun 1.4 configuration for the SvelteKit dashboard
 [install]
 frozenLockfile = false
 
@@ -7,3 +7,11 @@ frozenLockfile = false
 
 [run]
 bun = true
+
+# `bun fmt` (Bun 1.4.4+) — built-in Prettier-compatible formatter.
+# Matches the SvelteKit default style (tabs, single quotes, no trailing commas).
+[fmt]
+useTabs = true
+singleQuote = true
+trailingComma = "none"
+printWidth = 100

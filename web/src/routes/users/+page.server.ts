@@ -1,7 +1,7 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import type { UserLevel } from '$lib/types';
-import { calculateLevelFromXp, cumulativeXpForLevel } from '$lib/leveling';
+import type { UserLevel } from '#lib/types.js';
+import { calculateLevelFromXp, cumulativeXpForLevel } from '#lib/leveling.js';
 import {
 	resolveMembers,
 	searchMembers,
@@ -9,7 +9,7 @@ import {
 	setUserLevel,
 	resetUser,
 	type MemberDTO
-} from '$lib/server/bot';
+} from '#lib/server/bot.js';
 
 const SNOWFLAKE = /^\d{5,25}$/;
 const PER_PAGE = 25;
@@ -51,17 +51,18 @@ export const load: PageServerLoad = async ({ locals, parent, url }) => {
 		};
 	}
 
-	const result = await locals.pb
-		.collection('user_levels')
-		.getList<UserLevel>(pageNum, PER_PAGE, {
-			filter: locals.pb.filter('guild_id = {:g}', { g: gid }),
-			sort: '-xp'
-		});
+	const result = await locals.pb.collection('user_levels').getList<UserLevel>(pageNum, PER_PAGE, {
+		filter: locals.pb.filter('guild_id = {:g}', { g: gid }),
+		sort: '-xp'
+	});
 
 	let members: Record<string, MemberDTO> = {};
 	let search: MemberDTO[] = [];
 	if (guild?.botOnline) {
-		members = await resolveMembers(gid, result.items.map((u) => u.user_id));
+		members = await resolveMembers(
+			gid,
+			result.items.map((u) => u.user_id)
+		);
 		if (q) {
 			const r = await searchMembers(gid, q, 15);
 			if (r.ok) search = r.data;
@@ -88,18 +89,25 @@ export const actions: Actions = {
 		const guild_id = String(f.get('guild_id') || '').trim();
 		const user_id = String(f.get('user_id') || '').trim();
 		const xp = clampXp(f.get('xp'));
-		if (!SNOWFLAKE.test(guild_id) || !SNOWFLAKE.test(user_id)) return fail(400, { error: 'Invalid guild/user.' });
+		if (!SNOWFLAKE.test(guild_id) || !SNOWFLAKE.test(user_id))
+			return fail(400, { error: 'Invalid guild/user.' });
 
 		// Prefer the bot so reward roles re-sync; fall back to a plain DB write.
 		const viaBot = await setUserXp(guild_id, user_id, xp);
-		if (viaBot.ok) return { success: `Set XP to ${xp} (level ${viaBot.data.level}); roles re-synced.` };
+		if (viaBot.ok)
+			return { success: `Set XP to ${xp} (level ${viaBot.data.level}); roles re-synced.` };
 
 		try {
 			const existing = await locals.pb.collection('user_levels').getList(1, 1, {
 				filter: locals.pb.filter('guild_id = {:g} && user_id = {:u}', { g: guild_id, u: user_id })
 			});
-			const patch = { xp, level: calculateLevelFromXp(xp), last_message_time: new Date().toISOString() };
-			if (existing.totalItems > 0) await locals.pb.collection('user_levels').update(existing.items[0].id, patch);
+			const patch = {
+				xp,
+				level: calculateLevelFromXp(xp),
+				last_message_time: new Date().toISOString()
+			};
+			if (existing.totalItems > 0)
+				await locals.pb.collection('user_levels').update(existing.items[0].id, patch);
 			else await locals.pb.collection('user_levels').create({ guild_id, user_id, ...patch });
 			return { success: `Set XP to ${xp} (bot offline — roles not re-synced).` };
 		} catch {
@@ -112,7 +120,8 @@ export const actions: Actions = {
 		const guild_id = String(f.get('guild_id') || '').trim();
 		const user_id = String(f.get('user_id') || '').trim();
 		const level = clampLevel(f.get('level'));
-		if (!SNOWFLAKE.test(guild_id) || !SNOWFLAKE.test(user_id)) return fail(400, { error: 'Invalid guild/user.' });
+		if (!SNOWFLAKE.test(guild_id) || !SNOWFLAKE.test(user_id))
+			return fail(400, { error: 'Invalid guild/user.' });
 		const res = await setUserLevel(guild_id, user_id, level);
 		if (!res.ok) return fail(502, { error: res.error });
 		return { success: `Set to level ${res.data.level} (${res.data.xp} XP); roles re-synced.` };
@@ -122,7 +131,8 @@ export const actions: Actions = {
 		const f = await request.formData();
 		const guild_id = String(f.get('guild_id') || '').trim();
 		const user_id = String(f.get('user_id') || '').trim();
-		if (!SNOWFLAKE.test(guild_id) || !SNOWFLAKE.test(user_id)) return fail(400, { error: 'Invalid guild/user.' });
+		if (!SNOWFLAKE.test(guild_id) || !SNOWFLAKE.test(user_id))
+			return fail(400, { error: 'Invalid guild/user.' });
 
 		const viaBot = await resetUser(guild_id, user_id);
 		if (viaBot.ok) return { success: 'User level data reset.' };
@@ -131,11 +141,11 @@ export const actions: Actions = {
 			const existing = await locals.pb.collection('user_levels').getList(1, 1, {
 				filter: locals.pb.filter('guild_id = {:g} && user_id = {:u}', { g: guild_id, u: user_id })
 			});
-			if (existing.totalItems > 0) await locals.pb.collection('user_levels').delete(existing.items[0].id);
+			if (existing.totalItems > 0)
+				await locals.pb.collection('user_levels').delete(existing.items[0].id);
 			return { success: 'User level data reset (bot offline).' };
 		} catch {
 			return fail(400, { error: 'Failed to reset user.' });
 		}
 	}
 };
-

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { RoleDTO } from '$lib/server/bot';
+	import type { RoleDTO } from '#lib/server/bot.js';
 
 	let {
 		name,
@@ -24,7 +24,11 @@
 	<select {id} {name} {required} {value}>
 		<option value="" disabled={required}>— select a role —</option>
 		{#each options as r (r.id)}
-			<option value={r.id} disabled={assignableOnly && !r.assignable} style={r.color ? `color:${r.color}` : ''}>
+			<option
+				value={r.id}
+				disabled={assignableOnly && !r.assignable}
+				style={r.color ? `color:${r.color}` : ''}
+			>
 				{r.name}{r.assignable ? '' : ' (not assignable)'}
 			</option>
 		{/each}

@@ -1,7 +1,7 @@
 <script lang="ts">
-	import type { RoleDTO, ChannelDTO } from '$lib/server/bot';
-	import { safeColor } from '$lib/format';
-	import { floating } from '$lib/actions/popover';
+	import type { RoleDTO, ChannelDTO } from '#lib/server/bot.js';
+	import { safeColor } from '#lib/format.js';
+	import { floating } from '#lib/actions/popover.js';
 
 	let {
 		name,
@@ -130,7 +130,12 @@
 
 	// Render the stored value with mention tokens replaced by readable pills so
 	// the admin can see what Discord will actually show.
-	type Segment = { text: string } | { role: RoleDTO } | { channel: string; id: string } | { unknownRole: string } | { unknownChannel: string };
+	type Segment =
+		| { text: string }
+		| { role: RoleDTO }
+		| { channel: string; id: string }
+		| { unknownRole: string }
+		| { unknownChannel: string };
 	const preview = $derived.by<Segment[]>(() => {
 		const out: Segment[] = [];
 		const re = /<@&(\d+)>|<#(\d+)>/g;
@@ -150,7 +155,11 @@
 		if (last < value.length) out.push({ text: value.slice(last) });
 		return out;
 	});
-	const hasMentions = $derived(preview.some((s) => 'role' in s || 'channel' in s || 'unknownRole' in s || 'unknownChannel' in s));
+	const hasMentions = $derived(
+		preview.some(
+			(s) => 'role' in s || 'channel' in s || 'unknownRole' in s || 'unknownChannel' in s
+		)
+	);
 </script>
 
 <div class="mention-field">
@@ -170,11 +179,14 @@
 				if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) refresh();
 			}}
 			onblur={() => setTimeout(close, 120)}
-			autocomplete="off"
-		></textarea>
+			autocomplete="off"></textarea>
 
 		{#if trigger && suggestions.length > 0}
-			<ul class="ac" role="listbox" use:floating={{ anchor: ta, open: !!trigger, gap: 6, align: 'left' }}>
+			<ul
+				class="ac"
+				role="listbox"
+				use:floating={{ anchor: ta, open: !!trigger, gap: 6, align: 'left' }}
+			>
 				{#each suggestions as s, i (s.kind + s.id)}
 					<li>
 						<button
@@ -214,7 +226,9 @@
 			<span class="pv-label">Preview:</span>
 			{#each preview as seg}
 				{#if 'role' in seg}
-					<span class="pv-role" style="--c:{safeColor(seg.role.color, 'var(--accent-soft)')}">@{seg.role.name}</span>
+					<span class="pv-role" style="--c:{safeColor(seg.role.color, 'var(--accent-soft)')}"
+						>@{seg.role.name}</span
+					>
 				{:else if 'channel' in seg}
 					<span class="pv-chan">#{seg.channel}</span>
 				{:else if 'unknownRole' in seg}

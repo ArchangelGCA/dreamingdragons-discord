@@ -1,16 +1,15 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
+	import { enhance, type SubmitFunction } from '$app/forms';
 	import { untrack } from 'svelte';
-	import type { SubmitFunction } from '@sveltejs/kit';
-	import Banner from '$lib/components/Banner.svelte';
-	import RoleSelect from '$lib/components/RoleSelect.svelte';
-	import ChannelSelect from '$lib/components/ChannelSelect.svelte';
-	import RoleBadge from '$lib/components/RoleBadge.svelte';
-	import CopyId from '$lib/components/CopyId.svelte';
-	import MentionField from '$lib/components/MentionField.svelte';
-	import type { RoleDTO } from '$lib/server/bot';
-	import { animateIn } from '$lib/actions/animate';
-	import { popover } from '$lib/actions/popover';
+	import Banner from '#lib/components/Banner.svelte';
+	import RoleSelect from '#lib/components/RoleSelect.svelte';
+	import ChannelSelect from '#lib/components/ChannelSelect.svelte';
+	import RoleBadge from '#lib/components/RoleBadge.svelte';
+	import CopyId from '#lib/components/CopyId.svelte';
+	import MentionField from '#lib/components/MentionField.svelte';
+	import type { RoleDTO } from '#lib/server/bot.js';
+	import { animateIn } from '#lib/actions/animate.js';
+	import { popover } from '#lib/actions/popover.js';
 
 	let { data } = $props();
 
@@ -184,11 +183,17 @@
 			{#each createRows as row (row.key)}
 				{@render entryRow(createMode, createRows.length > 1, () => removeCreateRow(row.key))}
 			{/each}
-			<button type="button" class="btn ghost small add-row" onclick={addCreateRow}>＋ Add role</button>
+			<button type="button" class="btn ghost small add-row" onclick={addCreateRow}
+				>＋ Add role</button
+			>
 
 			<div class="builder-actions">
 				<button class="btn" disabled={busy === 'create'}>
-					{#if busy === 'create'}<span class="spinner"></span>{/if} Create &amp; post to Discord
+					{#if busy === 'create'}
+						<span class="spinner"></span>
+					{/if}
+
+					Create & post to Discord
 				</button>
 			</div>
 		</form>
@@ -221,7 +226,10 @@
 			{#if data.botMessages.length === 0}
 				<div class="empty">
 					<span class="big">📭</span>
-					<span>No bot-authored messages found in #{channelName.get(data.adoptChannel) ?? data.adoptChannel}.</span>
+					<span
+						>No bot-authored messages found in #{channelName.get(data.adoptChannel) ??
+							data.adoptChannel}.</span
+					>
 				</div>
 			{:else}
 				<form method="POST" action="?/adoptMessage" use:enhance={track('adopt', resetAdopt)}>
@@ -283,7 +291,9 @@
 					{#each adoptRows as row (row.key)}
 						{@render entryRow(adoptMode, adoptRows.length > 1, () => removeAdoptRow(row.key))}
 					{/each}
-					<button type="button" class="btn ghost small add-row" onclick={addAdoptRow}>＋ Add role</button>
+					<button type="button" class="btn ghost small add-row" onclick={addAdoptRow}
+						>＋ Add role</button
+					>
 
 					<div class="builder-actions">
 						<button class="btn" disabled={busy === 'adopt' || !adoptMessageId}>
@@ -311,7 +321,11 @@
 		{:else}
 			<div class="stack">
 				{#each data.groups as g, gi (g.message_id)}
-					<div class="card group" class:missing={g.exists === false} use:animateIn={{ delay: gi * 70 }}>
+					<div
+						class="card group"
+						class:missing={g.exists === false}
+						use:animateIn={{ delay: gi * 70 }}
+					>
 						<div class="group-head">
 							<div class="stack" style="gap:0.35rem">
 								<div class="cluster">
@@ -343,7 +357,8 @@
 										style="margin-top:0.6rem"
 										disabled={!online || busy === 'delete-' + g.message_id}
 									>
-										{#if busy === 'delete-' + g.message_id}<span class="spinner"></span>{/if} Confirm delete
+										{#if busy === 'delete-' + g.message_id}<span class="spinner"></span>{/if} Confirm
+										delete
 									</button>
 								</form>
 							</details>
@@ -373,7 +388,11 @@
 											value={g.channel_id}
 										/>
 										<label for="rs-title-{g.message_id}">Embed title (optional)</label>
-										<input id="rs-title-{g.message_id}" name="title" placeholder="Pick your roles" />
+										<input
+											id="rs-title-{g.message_id}"
+											name="title"
+											placeholder="Pick your roles"
+										/>
 										<label for="rs-desc-{g.message_id}">Description</label>
 										<MentionField
 											id="rs-desc-{g.message_id}"
@@ -390,7 +409,8 @@
 											style="margin-top:0.6rem"
 											disabled={!online || busy === 'resend-' + g.message_id}
 										>
-											{#if busy === 'resend-' + g.message_id}<span class="spinner"></span>{/if} Re-post to Discord
+											{#if busy === 'resend-' + g.message_id}<span class="spinner"></span>{/if} Re-post
+											to Discord
 										</button>
 									</form>
 								</details>
@@ -411,11 +431,16 @@
 												{#if e.label}<span class="lbl">"{e.label}"</span>{/if}
 											</td>
 											<td>
-												{#if e.button_style}<span class="badge neutral">{e.button_style}</span>{:else}<span
-														class="muted">—</span
-													>{/if}
+												{#if e.button_style}<span class="badge neutral">{e.button_style}</span
+													>{:else}<span class="muted">—</span>{/if}
 											</td>
-											<td><RoleBadge name={role?.name ?? null} color={role?.color ?? null} id={e.role_id} /></td>
+											<td
+												><RoleBadge
+													name={role?.name ?? null}
+													color={role?.color ?? null}
+													id={e.role_id}
+												/></td
+											>
 											<td class="right">
 												<div class="cluster" style="justify-content:flex-end;gap:0.4rem">
 													<details use:popover class="popover-fixed">
@@ -429,26 +454,52 @@
 															<input type="hidden" name="guild_id" value={gid} />
 															<input type="hidden" name="record_id" value={e.id} />
 															<label for="edit-role-{e.id}">Role</label>
-															<RoleSelect id="edit-role-{e.id}" name="role_id" roles={data.roles} assignableOnly value={e.role_id} />
+															<RoleSelect
+																id="edit-role-{e.id}"
+																name="role_id"
+																roles={data.roles}
+																assignableOnly
+																value={e.role_id}
+															/>
 															<label for="edit-emoji-{e.id}">Emoji</label>
-															<input id="edit-emoji-{e.id}" name="emoji" value={e.emoji_identifier} />
+															<input
+																id="edit-emoji-{e.id}"
+																name="emoji"
+																value={e.emoji_identifier}
+															/>
 															{#if g.type === 'button'}
 																<label for="edit-label-{e.id}">Label</label>
 																<input id="edit-label-{e.id}" name="label" value={e.label} />
 																<label for="edit-style-{e.id}">Style</label>
-																<select id="edit-style-{e.id}" name="style" value={e.button_style || 'secondary'}>
+																<select
+																	id="edit-style-{e.id}"
+																	name="style"
+																	value={e.button_style || 'secondary'}
+																>
 																	{#each styles as st (st)}<option value={st}>{st}</option>{/each}
 																</select>
 															{/if}
-															<button class="btn small block" style="margin-top:0.6rem" disabled={!online || busy === 'edit-' + e.id}>
+															<button
+																class="btn small block"
+																style="margin-top:0.6rem"
+																disabled={!online || busy === 'edit-' + e.id}
+															>
 																{#if busy === 'edit-' + e.id}<span class="spinner"></span>{/if} Save
 															</button>
 														</form>
 													</details>
-													<form method="POST" action="?/removeEntry" use:enhance={track('remove-' + e.id)}>
+													<form
+														method="POST"
+														action="?/removeEntry"
+														use:enhance={track('remove-' + e.id)}
+													>
 														<input type="hidden" name="guild_id" value={gid} />
 														<input type="hidden" name="record_id" value={e.id} />
-														<button class="btn danger secondary small" disabled={!online || busy === 'remove-' + e.id} aria-label="Remove role">✕</button>
+														<button
+															class="btn danger secondary small"
+															disabled={!online || busy === 'remove-' + e.id}
+															aria-label="Remove role">✕</button
+														>
 													</form>
 												</div>
 											</td>
@@ -470,8 +521,16 @@
 									<input type="hidden" name="guild_id" value={gid} />
 									<input type="hidden" name="message_id" value={g.message_id} />
 									<label for="add-role-{g.message_id}">Role</label>
-									<RoleSelect id="add-role-{g.message_id}" name="role_id" roles={data.roles} assignableOnly required />
-									<label for="add-emoji-{g.message_id}">Emoji {g.type === 'reaction' ? '(required)' : '(optional)'}</label>
+									<RoleSelect
+										id="add-role-{g.message_id}"
+										name="role_id"
+										roles={data.roles}
+										assignableOnly
+										required
+									/>
+									<label for="add-emoji-{g.message_id}"
+										>Emoji {g.type === 'reaction' ? '(required)' : '(optional)'}</label
+									>
 									<input id="add-emoji-{g.message_id}" name="emoji" />
 									{#if g.type === 'button'}
 										<label for="add-label-{g.message_id}">Label</label>
@@ -481,7 +540,11 @@
 											>{#each styles as st (st)}<option value={st}>{st}</option>{/each}</select
 										>
 									{/if}
-									<button class="btn small block" style="margin-top:0.6rem" disabled={!online || busy === 'add-' + g.message_id}>
+									<button
+										class="btn small block"
+										style="margin-top:0.6rem"
+										disabled={!online || busy === 'add-' + g.message_id}
+									>
 										{#if busy === 'add-' + g.message_id}<span class="spinner"></span>{/if} Add role
 									</button>
 								</form>
@@ -502,11 +565,17 @@
 										</p>
 									{:else}
 										<p class="muted hint" style="margin:0 0 0.5rem">
-											Pre-filled with the current message. Edit the text, ping roles or link channels, then save.
+											Pre-filled with the current message. Edit the text, ping roles or link
+											channels, then save.
 										</p>
 									{/if}
 									<label for="embed-title-{g.message_id}">Title</label>
-									<input id="embed-title-{g.message_id}" name="title" value={g.title ?? ''} placeholder="Pick your roles" />
+									<input
+										id="embed-title-{g.message_id}"
+										name="title"
+										value={g.title ?? ''}
+										placeholder="Pick your roles"
+									/>
 									<label for="embed-desc-{g.message_id}">Description</label>
 									<MentionField
 										id="embed-desc-{g.message_id}"
@@ -519,8 +588,17 @@
 										placeholder="Select your roles below:"
 									/>
 									<label for="embed-color-{g.message_id}">Color hex</label>
-									<input id="embed-color-{g.message_id}" name="color" value={g.color ?? ''} placeholder="#8b5cf6" />
-									<button class="btn small block" style="margin-top:0.6rem" disabled={!online || g.exists === false || busy === 'embed-' + g.message_id}>
+									<input
+										id="embed-color-{g.message_id}"
+										name="color"
+										value={g.color ?? ''}
+										placeholder="#8b5cf6"
+									/>
+									<button
+										class="btn small block"
+										style="margin-top:0.6rem"
+										disabled={!online || g.exists === false || busy === 'embed-' + g.message_id}
+									>
 										{#if busy === 'embed-' + g.message_id}<span class="spinner"></span>{/if} Update
 									</button>
 								</form>
@@ -636,7 +714,9 @@
 		border: 1px solid var(--border);
 		border-radius: var(--radius-sm);
 		cursor: pointer;
-		transition: border-color var(--t), background var(--t);
+		transition:
+			border-color var(--t),
+			background var(--t);
 	}
 	.msg-opt:hover {
 		border-color: var(--border-strong);

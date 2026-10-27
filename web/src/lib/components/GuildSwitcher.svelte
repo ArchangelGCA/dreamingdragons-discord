@@ -2,9 +2,9 @@
 	import { page } from '$app/state';
 	import { fly } from 'svelte/transition';
 	import Avatar from './Avatar.svelte';
-	import { formatNumber } from '$lib/leveling';
-	import type { GuildDTO } from '$lib/server/bot';
-	import { floating } from '$lib/actions/popover';
+	import { formatNumber } from '#lib/leveling.js';
+	import type { GuildDTO } from '#lib/server/bot.js';
+	import { floating } from '#lib/actions/popover.js';
 
 	let { guilds, currentGuildId }: { guilds: GuildDTO[]; currentGuildId: string | null } = $props();
 

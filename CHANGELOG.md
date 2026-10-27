@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.2.0] – 2026-10-27
+
+Major toolchain upgrade: **Bun 1.4.4** and **SvelteKit 3** (dashboard + public site). Bot behaviour is unchanged.
+
+### Changed
+
+- **Runtime: Bun 1.4.2 → 1.4.4** (`engines` in both `package.json` files, and `oven/bun:1.4.4-alpine` in both Dockerfiles — still multi-arch amd64/arm64). Bun 1.4.4 ships a libc-aware Linux installer (musl builds for Alpine) and a `ws` rewrite that matches ws 8.22.0, which discord.js uses for the gateway.
+- **Dashboard: SvelteKit 2 → 3.** Applied with `sv migrate sveltekit-3` plus manual follow-ups:
+  - **Adapter:** community `svelte-adapter-bun@1.0.2` (peer `@sveltejs/kit ^2`) → official **`@sveltejs/adapter-bun@1.0.0`** (peer `@sveltejs/kit ^3`), which serves through `Bun.serve`/`Bun.file`.
+  - **Vite 8** (`^8.3.5`), `@sveltejs/vite-plugin-svelte` 7, `svelte` 5.57, `svelte-check` 4.7, TypeScript 6.0 (7 is not usable yet — `svelte-check` peers on `^5 || ^6`), `pocketbase` 0.28.1.
+  - **`ORIGIN` is now a build-time value** (`paths.origin`): SvelteKit 3 dropped adapter-node's runtime `ORIGIN`. `docker-compose.yml` forwards `ORIGIN` as a build arg, so the documented "must match the URL you open the dashboard from" contract still holds — but changing it now requires `docker compose up -d --build web`. A trailing slash is normalized away; a real path/query (e.g. `https://host/admin`) fails the build with SvelteKit's `config_origin_has_path` error. The runtime env var is kept for the `Secure` cookie flag.
+  - **Explicit env vars:** new `web/src/env.ts` declares/validates every variable once with `defineEnvVars`; consumers import from `$app/env/private` instead of `$env/dynamic/private`. Malformed URLs now fail fast at startup.
+  - **Imports:** `$lib` → the `#lib/*` package-imports map (`web/package.json`); `$app/environment` → `$app/env`; `Handle`/`HandleServerError` now come from `@sveltejs/kit/hooks`, `SubmitFunction` from `$app/forms`.
+  - **`page.url` is readonly:** the shop's filter/sort URL sync now copies with `new URL(page.url.href)`, and `replaceState` was replaced by `goto(url, { shallow: true, replace: true })`.
+  - **Enhanced forms** now use the `fail()` status code and navigate when the action lives on another page; audited every form — all target the current page (`?/action`), and the guild switcher is a plain POST.
+  - Added `handleError` in `hooks.server.ts` (logs unexpected errors only, keeps SvelteKit's default status/message).
+- **Docker images:** both Dockerfiles now use `bun pm fetch` in its own layer followed by `bun install --offline --frozen-lockfile`, so editing source never re-downloads dependencies. In `web/Dockerfile` the `ORIGIN` build arg is declared *after* those layers, so a changed `ORIGIN` only re-runs the build (~8 s) instead of reinstalling packages. The web runtime image copies only `build/` + `package.json` — no `node_modules` at runtime, because the adapter bundles `pocketbase` (moved to `devDependencies`).
+- **New `BODY_SIZE_LIMIT` setting** (default `20M`, configurable in `.env`): `@sveltejs/adapter-bun` defaults to a 512K request body, which would break PocketBase admin uploads proxied through `/pb/*`.
+- **Formatting:** added **`bun fmt`** (Bun 1.4.4's built-in Prettier-compatible formatter) scoped to `web/` via `web/bunfig.toml`, with `bun run format` / `format:check` scripts. The whole `web/` tree was reformatted once (mechanical diff only). The bot source is untouched to avoid churn.
+- README/AGENTS: Bun 1.4.4, SvelteKit 3, official Bun adapter, `#lib` imports, `bun fmt`, the build-time `ORIGIN` caveat, and the `BODY_SIZE_LIMIT` variable.
+
+### Fixed
+
+- **Dashboard / Docker:** the web image no longer depends on `node_modules` being present at runtime (previously a latent failure mode with the community adapter), and `bun install` inside the image is now fully offline/reproducible.
+- **Dashboard / env:** a malformed `POCKETBASE_URL`, `BOT_API_URL` or `ORIGIN` is reported with a clear message at boot instead of failing later inside a request.
+
 ## [0.1.6] – 2026-09-07
 
 ### Security
@@ -105,7 +131,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Initial release.
 
-[Unreleased]: https://github.com/ArchangelGCA/dreamingdragons-discord/compare/v0.1.6...HEAD
+[Unreleased]: https://github.com/ArchangelGCA/dreamingdragons-discord/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/ArchangelGCA/dreamingdragons-discord/compare/v0.1.6...v0.2.0
 [0.1.6]: https://github.com/ArchangelGCA/dreamingdragons-discord/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/ArchangelGCA/dreamingdragons-discord/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/ArchangelGCA/dreamingdragons-discord/compare/v0.1.3...v0.1.4

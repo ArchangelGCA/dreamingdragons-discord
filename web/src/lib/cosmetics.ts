@@ -55,7 +55,15 @@ export interface PublicCosmetics {
 export function resolveEquipped(
 	equipped: Record<string, string> | null | undefined
 ): PublicCosmetics {
-	const out: PublicCosmetics = { color: null, title: null, frame: null, flair: null, banner: null, badge: null, effect: null };
+	const out: PublicCosmetics = {
+		color: null,
+		title: null,
+		frame: null,
+		flair: null,
+		banner: null,
+		badge: null,
+		effect: null
+	};
 	if (!equipped) return out;
 
 	for (const slot of SLOTS) {
@@ -82,8 +90,18 @@ export function resolveEquipped(
 				out.flair = item.emoji;
 				break;
 			case 'banner': {
-				if (item.palette) out.banner = { from: item.palette[0], to: item.palette[1], cssClass: item.cssClass ?? null };
-				else out.banner = { from: 'var(--accent-strong)', to: 'var(--accent-soft)', cssClass: item.cssClass ?? null };
+				if (item.palette)
+					out.banner = {
+						from: item.palette[0],
+						to: item.palette[1],
+						cssClass: item.cssClass ?? null
+					};
+				else
+					out.banner = {
+						from: 'var(--accent-strong)',
+						to: 'var(--accent-soft)',
+						cssClass: item.cssClass ?? null
+					};
 				break;
 			}
 			case 'badge':

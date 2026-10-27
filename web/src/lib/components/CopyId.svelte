@@ -35,7 +35,9 @@
 		color: var(--text-muted);
 		font-size: 0.78rem;
 		cursor: pointer;
-		transition: color var(--t), border-color var(--t);
+		transition:
+			color var(--t),
+			border-color var(--t);
 	}
 	.copy-id:hover {
 		color: var(--text);

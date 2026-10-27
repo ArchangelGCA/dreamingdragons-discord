@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { monogram, gradientFor } from '$lib/format';
+	import { monogram, gradientFor } from '#lib/format.js';
 
 	let {
 		src = '',

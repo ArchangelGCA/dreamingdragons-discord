@@ -164,10 +164,10 @@ export const popover: Action<HTMLDetailsElement> = (node) => {
  *
  * Usage (svelte 5): `<div use:floating={{ anchor: triggerEl, open, gap: 8 }}>`
  */
-export const floating: Action<HTMLElement, { anchor: HTMLElement | null; open: boolean; gap?: number; align?: 'left' | 'right' }> = (
-	node,
-	params = { anchor: null, open: false }
-) => {
+export const floating: Action<
+	HTMLElement,
+	{ anchor: HTMLElement | null; open: boolean; gap?: number; align?: 'left' | 'right' }
+> = (node, params = { anchor: null, open: false }) => {
 	const original = {
 		position: node.style.position,
 		top: node.style.top,

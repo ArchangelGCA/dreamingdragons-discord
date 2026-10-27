@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { safeColor } from '$lib/format';
+	import { safeColor } from '#lib/format.js';
 
 	let {
 		name = null,

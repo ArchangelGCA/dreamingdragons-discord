@@ -43,7 +43,10 @@ export const actions: Actions = {
 		const password = String(form.get('password') || '');
 
 		if (loginRateLimited(loginKey(request, getClientAddress))) {
-			return fail(429, { error: 'Too many sign-in attempts — wait a few minutes and try again.', email });
+			return fail(429, {
+				error: 'Too many sign-in attempts — wait a few minutes and try again.',
+				email
+			});
 		}
 
 		if (!email || !password) {

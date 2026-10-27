@@ -1,6 +1,6 @@
 import type { PageServerLoad } from './$types';
-import type { UserLevel } from '$lib/types';
-import { resolveMembers, type MemberDTO } from '$lib/server/bot';
+import type { UserLevel } from '#lib/types.js';
+import { resolveMembers, type MemberDTO } from '#lib/server/bot.js';
 
 export const load: PageServerLoad = async ({ locals, parent }) => {
 	const { guild } = await parent();
@@ -37,7 +37,10 @@ export const load: PageServerLoad = async ({ locals, parent }) => {
 
 		let members: Record<string, MemberDTO> = {};
 		if (gid && guild?.botOnline && topUsers.length > 0) {
-			members = await resolveMembers(gid, topUsers.map((u) => u.user_id));
+			members = await resolveMembers(
+				gid,
+				topUsers.map((u) => u.user_id)
+			);
 		}
 
 		return {

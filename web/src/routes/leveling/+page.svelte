@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import Banner from '$lib/components/Banner.svelte';
-	import RoleSelect from '$lib/components/RoleSelect.svelte';
-	import ChannelSelect from '$lib/components/ChannelSelect.svelte';
-	import RoleBadge from '$lib/components/RoleBadge.svelte';
-	import Avatar from '$lib/components/Avatar.svelte';
-	import type { RoleDTO } from '$lib/server/bot';
-	import { animateIn } from '$lib/actions/animate';
+	import Banner from '#lib/components/Banner.svelte';
+	import RoleSelect from '#lib/components/RoleSelect.svelte';
+	import ChannelSelect from '#lib/components/ChannelSelect.svelte';
+	import RoleBadge from '#lib/components/RoleBadge.svelte';
+	import Avatar from '#lib/components/Avatar.svelte';
+	import type { RoleDTO } from '#lib/server/bot.js';
+	import { animateIn } from '#lib/actions/animate.js';
 
 	let { data, form } = $props();
 
@@ -48,17 +48,35 @@
 		<form method="POST" action="?/saveSettings" use:enhance={track('settings')} class="card pad-lg">
 			<input type="hidden" name="guild_id" value={gid} />
 			<label for="nc">Notification channel</label>
-			<ChannelSelect id="nc" name="notification_channel_id" channels={data.channels}
-				value={s?.notification_channel_id ?? ''} />
+			<ChannelSelect
+				id="nc"
+				name="notification_channel_id"
+				channels={data.channels}
+				value={s?.notification_channel_id ?? ''}
+			/>
 
 			<div class="row" style="margin-top:0.85rem">
 				<div>
 					<label for="xpm">XP per message</label>
-					<input id="xpm" name="xp_per_message" type="number" min="1" max="1000" value={s?.xp_per_message ?? 20} />
+					<input
+						id="xpm"
+						name="xp_per_message"
+						type="number"
+						min="1"
+						max="1000"
+						value={s?.xp_per_message ?? 20}
+					/>
 				</div>
 				<div>
 					<label for="cd">Cooldown (seconds)</label>
-					<input id="cd" name="xp_cooldown" type="number" min="1" max="86400" value={s?.xp_cooldown ?? 60} />
+					<input
+						id="cd"
+						name="xp_cooldown"
+						type="number"
+						min="1"
+						max="86400"
+						value={s?.xp_cooldown ?? 60}
+					/>
 				</div>
 			</div>
 
@@ -79,7 +97,13 @@
 
 	<div class="section" use:animateIn={{ delay: 60 }}>
 		<h2>🎁 Role rewards</h2>
-		<form method="POST" action="?/addReward" use:enhance={track('reward')} class="card" style="margin-bottom:1rem">
+		<form
+			method="POST"
+			action="?/addReward"
+			use:enhance={track('reward')}
+			class="card"
+			style="margin-bottom:1rem"
+		>
 			<input type="hidden" name="guild_id" value={gid} />
 			<div class="row">
 				<div style="flex:2">
@@ -99,7 +123,9 @@
 		</form>
 
 		{#if data.rewards.length === 0}
-			<div class="empty" use:animateIn={{ delay: 100 }}><span class="big">🎁</span><span>No role rewards defined yet.</span></div>
+			<div class="empty" use:animateIn={{ delay: 100 }}>
+				<span class="big">🎁</span><span>No role rewards defined yet.</span>
+			</div>
 		{:else}
 			<div class="table-wrap scroll" use:animateIn={{ delay: 100 }}>
 				<table>
@@ -109,7 +135,13 @@
 							{@const role = roleById.get(r.role_id)}
 							<tr>
 								<td><span class="lvl-chip">Lv {r.level}</span></td>
-								<td><RoleBadge name={role?.name ?? null} color={role?.color ?? null} id={r.role_id} /></td>
+								<td
+									><RoleBadge
+										name={role?.name ?? null}
+										color={role?.color ?? null}
+										id={r.role_id}
+									/></td
+								>
 								<td class="right">
 									<form method="POST" action="?/deleteReward" use:enhance>
 										<input type="hidden" name="id" value={r.id} />
@@ -145,19 +177,25 @@
 				</form>
 			</div>
 			<p class="muted" style="font-size:0.82rem;margin:0.85rem 0 0">
-				<strong>Recover XP</strong> grants members the XP tied to reward roles they already hold (fixes a lost
-				database). <strong>Sync roles</strong> re-awards reward roles based on current XP. Both need the bot online.
+				<strong>Recover XP</strong> grants members the XP tied to reward roles they already hold
+				(fixes a lost database). <strong>Sync roles</strong> re-awards reward roles based on current XP.
+				Both need the bot online.
 			</p>
 
 			{#if form?.recover}
 				{@const rec = form.recover}
 				<div style="margin-top:1.1rem" use:animateIn>
 					{#if rec.applied}
-						<div class="alert success">Applied: {rec.updated} updated, {rec.skipped} skipped, {rec.errors} errors.</div>
+						<div class="alert success">
+							Applied: {rec.updated} updated, {rec.skipped} skipped, {rec.errors} errors.
+						</div>
 					{:else if rec.changes.length === 0}
 						<div class="alert success">Nothing to recover — everyone already has enough XP.</div>
 					{:else}
-						<div class="alert">Preview: {rec.changes.length} member(s) would be updated, {rec.skipped} skipped. Review, then apply.</div>
+						<div class="alert">
+							Preview: {rec.changes.length} member(s) would be updated, {rec.skipped} skipped. Review,
+							then apply.
+						</div>
 						<div class="table-wrap scroll">
 							<table>
 								<thead><tr><th>Member</th><th>From</th><th>→ To</th></tr></thead>
@@ -177,10 +215,16 @@
 								</tbody>
 							</table>
 						</div>
-						<form method="POST" action="?/applyRecover" use:enhance={track('apply')} style="margin-top:0.85rem">
+						<form
+							method="POST"
+							action="?/applyRecover"
+							use:enhance={track('apply')}
+							style="margin-top:0.85rem"
+						>
 							<input type="hidden" name="guild_id" value={gid} />
 							<button class="btn" disabled={busy === 'apply'}>
-								{#if busy === 'apply'}<span class="spinner"></span>{/if} Apply recovery to {rec.changes.length} member(s)
+								{#if busy === 'apply'}<span class="spinner"></span>{/if} Apply recovery to {rec
+									.changes.length} member(s)
 							</button>
 						</form>
 					{/if}

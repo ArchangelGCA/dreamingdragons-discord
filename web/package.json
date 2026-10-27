@@ -1,29 +1,33 @@
 {
 	"name": "web",
 	"private": true,
-	"version": "0.0.1",
+	"version": "0.2.0",
 	"type": "module",
+	"imports": {
+		"#lib": "./src/lib/index.js",
+		"#lib/*": "./src/lib/*"
+	},
 	"scripts": {
 		"dev": "vite dev",
 		"build": "vite build",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
+		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+		"format": "bun fmt",
+		"format:check": "bun fmt --check"
 	},
 	"engines": {
-		"bun": ">=1.4.2"
+		"bun": ">=1.4.4"
 	},
 	"devDependencies": {
-		"@sveltejs/kit": "^2.70.3",
-		"@sveltejs/vite-plugin-svelte": "^7.3.0",
-		"svelte": "^5.57.0",
-		"svelte-adapter-bun": "^1.0.1",
-		"svelte-check": "^4.7.6",
+		"@sveltejs/adapter-bun": "^1.0.0",
+		"@sveltejs/kit": "^3.1.0",
+		"@sveltejs/vite-plugin-svelte": "^7.3.1",
+		"pocketbase": "^0.28.1",
+		"svelte": "^5.57.3",
+		"svelte-check": "^4.7.7",
 		"typescript": "^6.0.3",
-		"vite": "^8.2.2"
-	},
-	"dependencies": {
-		"pocketbase": "^0.28.1"
+		"vite": "^8.3.5"
 	}
 }
